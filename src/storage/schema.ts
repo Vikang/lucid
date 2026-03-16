@@ -107,6 +107,7 @@ export interface Episode {
   createdAt: string;
   duration: string;
   embeddingDim: number | null;
+  sourceSessionId: string | null;
 }
 
 export const CREATE_EPISODES_TABLE = `

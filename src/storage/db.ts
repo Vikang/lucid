@@ -70,6 +70,21 @@ export function initDatabase(dbPath: string): Database {
     // Column already exists — ignore
   }
 
+  // Migration: add source_session_id column to episodes for import deduplication
+  try {
+    db.run('ALTER TABLE episodes ADD COLUMN source_session_id TEXT DEFAULT NULL');
+    logger.debug('Added source_session_id column to episodes table');
+  } catch {
+    // Column already exists — ignore
+  }
+
+  // Index for fast duplicate lookups
+  try {
+    db.run('CREATE INDEX IF NOT EXISTS idx_episodes_source ON episodes(source_session_id)');
+  } catch {
+    // Index already exists — ignore
+  }
+
   logger.debug('Database initialized successfully');
   return db;
 }

@@ -12,6 +12,7 @@ import { forgetCommand } from './forget';
 import { configCommand } from './config';
 import { addCommand } from './add';
 import { sessionCommand } from './session';
+import { importCommand } from './import';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -30,6 +31,7 @@ export function createProgram(): Command {
   program.addCommand(configCommand);
   program.addCommand(addCommand);
   program.addCommand(sessionCommand);
+  program.addCommand(importCommand);
 
   return program;
 }

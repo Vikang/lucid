@@ -7,3 +7,5 @@ export { ContextType, type Memory, type Episode, type Config, type EmbeddingConf
 export type { AddMemoryInput } from '../core/memory';
 export type { SearchResult, SearchOptions, ScoringComponents, ScoredMemory } from '../core/search';
 export type { SaveEpisodeInput, EpisodeSearchResult } from '../core/episodes';
+export type { DiscoveredSession, ParsedMessage, ParsedSession } from '../import/openclaw';
+export type { ImportOptions, ImportResult } from '../import/engine';

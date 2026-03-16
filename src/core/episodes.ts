@@ -24,6 +24,7 @@ export interface SaveEpisodeInput {
   interactionTone?: string;
   duration?: string;
   memoryIds?: string[];
+  sourceSessionId?: string;
 }
 
 export interface EpisodeSearchResult extends Episode {
@@ -45,6 +46,7 @@ interface EpisodeRow {
   embedding: string | null;
   embedding_dim: number | null;
   created_at: string;
+  source_session_id: string | null;
 }
 
 /**
@@ -63,6 +65,7 @@ function rowToEpisode(row: EpisodeRow, tags: string[]): Episode {
     createdAt: row.created_at,
     duration: row.duration,
     embeddingDim: row.embedding_dim,
+    sourceSessionId: row.source_session_id ?? null,
   };
 }
 
@@ -125,8 +128,8 @@ export async function saveEpisode(input: SaveEpisodeInput, config: Config): Prom
 
     // Insert episode row
     db.run(
-      `INSERT INTO episodes (id, label, summary, transcript, message_count, project_id, interaction_tone, duration, embedding, embedding_dim, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO episodes (id, label, summary, transcript, message_count, project_id, interaction_tone, duration, embedding, embedding_dim, created_at, source_session_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.label ?? '',
@@ -139,6 +142,7 @@ export async function saveEpisode(input: SaveEpisodeInput, config: Config): Prom
         embeddingJson,
         embeddingDim,
         now,
+        input.sourceSessionId ?? null,
       ],
     );
 
@@ -169,7 +173,23 @@ export async function saveEpisode(input: SaveEpisodeInput, config: Config): Prom
       createdAt: now,
       duration: input.duration ?? '',
       embeddingDim,
+      sourceSessionId: input.sourceSessionId ?? null,
     };
+  } finally {
+    closeDatabase();
+  }
+}
+
+/**
+ * Check if an episode with the given source session ID already exists.
+ */
+export function episodeExistsBySourceSessionId(sourceSessionId: string, config: Config): boolean {
+  const dbPath = getDbPath(config);
+  const db = initDatabase(dbPath);
+
+  try {
+    const row = db.query('SELECT id FROM episodes WHERE source_session_id = ?').get(sourceSessionId) as { id: string } | null;
+    return row !== null;
   } finally {
     closeDatabase();
   }
