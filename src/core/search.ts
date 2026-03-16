@@ -69,6 +69,7 @@ interface MemoryWithEmbedding {
   confidence_score: number;
   action_required: number;
   knowledge_domain: string | null;
+  episode_id: string | null;
 }
 
 // ─── Stop Words ──────────────────────────────────────────────────────
@@ -492,6 +493,7 @@ export async function searchMemories(
         confidenceScore,
         actionRequired: isActionRequired,
         knowledgeDomain: row.knowledge_domain || '',
+        episodeId: row.episode_id || null,
       };
 
       scored.push({

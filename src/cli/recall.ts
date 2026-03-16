@@ -4,6 +4,7 @@
 
 import { Command } from 'commander';
 import { searchMemories } from '../core/search';
+import { getEpisode } from '../core/episodes';
 import { loadConfig } from '../config';
 import { logger } from '../utils/logger';
 import { wrapAction } from '../utils/cli-wrapper';
@@ -45,6 +46,19 @@ export const recallCommand = new Command('recall')
         const scoreColor = r.score >= 0.8 ? chalk.green : r.score >= 0.5 ? chalk.yellow : chalk.dim;
         console.log(`  ${scoreColor(`[${r.score.toFixed(2)}]`)} ${r.content}`);
         console.log(`  ${chalk.cyan('→')} ${r.reasoning}`);
+
+        // Show episode source if linked
+        if (r.episodeId) {
+          const episode = await getEpisode(r.episodeId, config);
+          if (episode) {
+            const dateStr = new Date(episode.createdAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+            });
+            console.log(`  ${chalk.cyan('→')} From session: "${episode.label || 'Untitled'}" (${dateStr})`);
+          }
+        }
+
         console.log(`  ${chalk.dim(`tags: ${r.tags.join(', ') || 'none'} | importance: ${r.importance} | ${r.contextType}`)}`);
         console.log();
       }

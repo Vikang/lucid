@@ -28,6 +28,8 @@ export interface AddMemoryInput {
   confidenceScore?: number;
   actionRequired?: boolean;
   knowledgeDomain?: string;
+  // Episode linking
+  episodeId?: string;
 }
 
 interface MemoryRow {
@@ -49,6 +51,8 @@ interface MemoryRow {
   confidence_score: number;
   action_required: number;
   knowledge_domain: string | null;
+  // Episode linking
+  episode_id: string | null;
 }
 
 /**
@@ -74,6 +78,7 @@ function rowToMemory(row: MemoryRow, tags: string[]): Memory {
     confidenceScore: row.confidence_score ?? 0.8,
     actionRequired: row.action_required === 1,
     knowledgeDomain: row.knowledge_domain || '',
+    episodeId: row.episode_id || null,
   };
 }
 
@@ -102,8 +107,8 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
 
     // Insert memory row
     db.run(
-      `INSERT INTO memories (id, content, importance, context_type, trigger_phrases, source_session, temporal_relevance, embedding, embedding_dim, created_at, last_accessed, access_count, question_types, emotional_resonance, problem_solution_pair, confidence_score, action_required, knowledge_domain)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO memories (id, content, importance, context_type, trigger_phrases, source_session, temporal_relevance, embedding, embedding_dim, created_at, last_accessed, access_count, question_types, emotional_resonance, problem_solution_pair, confidence_score, action_required, knowledge_domain, episode_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.content,
@@ -121,6 +126,7 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
         input.confidenceScore ?? 0.8,
         input.actionRequired ? 1 : 0,
         input.knowledgeDomain ?? '',
+        input.episodeId ?? null,
       ],
     );
 
@@ -151,6 +157,7 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
       confidenceScore: input.confidenceScore ?? 0.8,
       actionRequired: input.actionRequired ?? false,
       knowledgeDomain: input.knowledgeDomain ?? '',
+      episodeId: input.episodeId ?? null,
     };
   } finally {
     closeDatabase();

@@ -5,7 +5,7 @@
 import { Command } from 'commander';
 import { existsSync, statSync } from 'node:fs';
 import { loadConfig, resolveDataDir, getConfigPath, getDbPath } from '../config';
-import { initDatabase, getMemoryCount, getEmbeddingDimStats, closeDatabase } from '../storage/db';
+import { initDatabase, getMemoryCount, getEpisodeCount, getEmbeddingDimStats, closeDatabase } from '../storage/db';
 import { wrapAction } from '../utils/cli-wrapper';
 import chalk from 'chalk';
 
@@ -31,11 +31,13 @@ export const statusCommand = new Command('status')
 
       const db = initDatabase(dbPath);
       const count = getMemoryCount(db);
+      const episodeCount = getEpisodeCount(db);
       const dimStats = getEmbeddingDimStats(db);
       closeDatabase();
 
       console.log(`  Database:     ${dbPath} (${sizeKb} KB)`);
       console.log(`  Memories:     ${count}`);
+      console.log(`  Episodes:     ${episodeCount}`);
 
       // Show dimension stats
       if (dimStats.length > 0) {

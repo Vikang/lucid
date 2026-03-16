@@ -11,6 +11,7 @@ import { listCommand } from './list';
 import { forgetCommand } from './forget';
 import { configCommand } from './config';
 import { addCommand } from './add';
+import { sessionCommand } from './session';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -28,6 +29,7 @@ export function createProgram(): Command {
   program.addCommand(forgetCommand);
   program.addCommand(configCommand);
   program.addCommand(addCommand);
+  program.addCommand(sessionCommand);
 
   return program;
 }

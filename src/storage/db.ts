@@ -4,7 +4,7 @@
  */
 
 import { Database } from 'bun:sqlite';
-import { CREATE_MEMORIES_TABLE, CREATE_MEMORY_TAGS_TABLE } from './schema';
+import { CREATE_MEMORIES_TABLE, CREATE_MEMORY_TAGS_TABLE, CREATE_EPISODES_TABLE, CREATE_EPISODE_TAGS_TABLE } from './schema';
 import { logger } from '../utils/logger';
 
 let db: Database | null = null;
@@ -25,6 +25,8 @@ export function initDatabase(dbPath: string): Database {
   // Create tables
   db.run(CREATE_MEMORIES_TABLE);
   db.run(CREATE_MEMORY_TAGS_TABLE);
+  db.run(CREATE_EPISODES_TABLE);
+  db.run(CREATE_EPISODE_TAGS_TABLE);
 
   // Migration: add embedding column if it doesn't exist (for DBs created before Phase 1)
   try {
@@ -60,6 +62,14 @@ export function initDatabase(dbPath: string): Database {
     }
   }
 
+  // Migration: add episode_id column to memories for episode linking
+  try {
+    db.run('ALTER TABLE memories ADD COLUMN episode_id TEXT DEFAULT NULL');
+    logger.debug('Added episode_id column to memories table');
+  } catch {
+    // Column already exists — ignore
+  }
+
   logger.debug('Database initialized successfully');
   return db;
 }
@@ -92,6 +102,19 @@ export function closeDatabase(): void {
 export function getMemoryCount(database: Database): number {
   const row = database.query('SELECT COUNT(*) as count FROM memories').get() as { count: number };
   return row.count;
+}
+
+/**
+ * Get the number of episodes in the database.
+ */
+export function getEpisodeCount(database: Database): number {
+  try {
+    const row = database.query('SELECT COUNT(*) as count FROM episodes').get() as { count: number };
+    return row.count;
+  } catch {
+    // Table might not exist yet
+    return 0;
+  }
 }
 
 /**

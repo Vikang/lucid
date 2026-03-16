@@ -25,6 +25,7 @@ export const addCommand = new Command('add')
   .option('--confidence <score>', 'Confidence 0.0-1.0', '0.8')
   .option('--action-required', 'Mark as requiring action')
   .option('--domain <domain>', 'Knowledge domain')
+  .option('--episode <id>', 'Link to an episode')
   .option('--json', 'Output as JSON')
   .action(wrapAction(async (
     content: string,
@@ -40,6 +41,7 @@ export const addCommand = new Command('add')
       confidence: string;
       actionRequired?: boolean;
       domain?: string;
+      episode?: string;
       json?: boolean;
     },
   ) => {
@@ -95,6 +97,7 @@ export const addCommand = new Command('add')
       confidenceScore: confidence,
       actionRequired: opts.actionRequired,
       knowledgeDomain: opts.domain,
+      episodeId: opts.episode,
     }, config);
 
     if (opts.json) {

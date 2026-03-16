@@ -36,6 +36,8 @@ export interface Memory {
   confidenceScore: number;
   actionRequired: boolean;
   knowledgeDomain: string;
+  // Episode linking
+  episodeId: string | null;
 }
 
 export interface EmbeddingConfig {
@@ -87,5 +89,47 @@ CREATE TABLE IF NOT EXISTS memory_tags (
   tag TEXT NOT NULL,
   PRIMARY KEY (memory_id, tag),
   FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+);
+`;
+
+/**
+ * Episode — a stored conversation transcript with metadata.
+ */
+export interface Episode {
+  id: string;
+  label: string;
+  summary: string;
+  transcript: string;
+  messageCount: number;
+  tags: string[];
+  projectId: string;
+  interactionTone: string;
+  createdAt: string;
+  duration: string;
+  embeddingDim: number | null;
+}
+
+export const CREATE_EPISODES_TABLE = `
+CREATE TABLE IF NOT EXISTS episodes (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL DEFAULT '',
+  summary TEXT NOT NULL DEFAULT '',
+  transcript TEXT NOT NULL,
+  message_count INTEGER DEFAULT 0,
+  project_id TEXT DEFAULT '',
+  interaction_tone TEXT DEFAULT '',
+  duration TEXT DEFAULT '',
+  embedding TEXT,
+  embedding_dim INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`;
+
+export const CREATE_EPISODE_TAGS_TABLE = `
+CREATE TABLE IF NOT EXISTS episode_tags (
+  episode_id TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  PRIMARY KEY (episode_id, tag),
+  FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 );
 `;
