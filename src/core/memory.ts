@@ -21,6 +21,13 @@ export interface AddMemoryInput {
   triggerPhrases?: string[];
   sourceSession?: string;
   temporalRelevance?: 'persistent' | 'short-term' | 'expiring';
+  // NEW — smart recall metadata
+  questionTypes?: string[];
+  emotionalResonance?: string;
+  problemSolutionPair?: boolean;
+  confidenceScore?: number;
+  actionRequired?: boolean;
+  knowledgeDomain?: string;
 }
 
 interface MemoryRow {
@@ -35,6 +42,13 @@ interface MemoryRow {
   created_at: string;
   last_accessed: string | null;
   access_count: number;
+  // NEW — smart recall metadata
+  question_types: string | null;
+  emotional_resonance: string | null;
+  problem_solution_pair: number;
+  confidence_score: number;
+  action_required: number;
+  knowledge_domain: string | null;
 }
 
 /**
@@ -53,6 +67,13 @@ function rowToMemory(row: MemoryRow, tags: string[]): Memory {
     createdAt: row.created_at,
     lastAccessed: row.last_accessed,
     accessCount: row.access_count,
+    // NEW — smart recall metadata
+    questionTypes: row.question_types ? JSON.parse(row.question_types) as string[] : [],
+    emotionalResonance: row.emotional_resonance || '',
+    problemSolutionPair: row.problem_solution_pair === 1,
+    confidenceScore: row.confidence_score ?? 0.8,
+    actionRequired: row.action_required === 1,
+    knowledgeDomain: row.knowledge_domain || '',
   };
 }
 
@@ -81,8 +102,8 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
 
     // Insert memory row
     db.run(
-      `INSERT INTO memories (id, content, importance, context_type, trigger_phrases, source_session, temporal_relevance, embedding, embedding_dim, created_at, last_accessed, access_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0)`,
+      `INSERT INTO memories (id, content, importance, context_type, trigger_phrases, source_session, temporal_relevance, embedding, embedding_dim, created_at, last_accessed, access_count, question_types, emotional_resonance, problem_solution_pair, confidence_score, action_required, knowledge_domain)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.content,
@@ -94,6 +115,12 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
         embeddingJson,
         embeddingDim,
         now,
+        input.questionTypes ? JSON.stringify(input.questionTypes) : null,
+        input.emotionalResonance ?? '',
+        input.problemSolutionPair ? 1 : 0,
+        input.confidenceScore ?? 0.8,
+        input.actionRequired ? 1 : 0,
+        input.knowledgeDomain ?? '',
       ],
     );
 
@@ -117,6 +144,13 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
       createdAt: now,
       lastAccessed: null,
       accessCount: 0,
+      // NEW — smart recall metadata
+      questionTypes: input.questionTypes ?? [],
+      emotionalResonance: input.emotionalResonance ?? '',
+      problemSolutionPair: input.problemSolutionPair ?? false,
+      confidenceScore: input.confidenceScore ?? 0.8,
+      actionRequired: input.actionRequired ?? false,
+      knowledgeDomain: input.knowledgeDomain ?? '',
     };
   } finally {
     closeDatabase();

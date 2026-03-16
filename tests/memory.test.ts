@@ -67,6 +67,33 @@ describe('addMemory', () => {
     expect(memory.tags).toEqual([]);
     expect(memory.contextType).toBe('PROJECT_CONTEXT');
     expect(memory.temporalRelevance).toBe('persistent');
+    // Smart recall defaults
+    expect(memory.questionTypes).toEqual([]);
+    expect(memory.emotionalResonance).toBe('');
+    expect(memory.problemSolutionPair).toBe(false);
+    expect(memory.confidenceScore).toBe(0.8);
+    expect(memory.actionRequired).toBe(false);
+    expect(memory.knowledgeDomain).toBe('');
+  });
+
+  test('creates a memory with smart recall fields', async () => {
+    const memory = await addMemory({
+      content: 'Memory with smart recall metadata',
+      importance: 0.9,
+      questionTypes: ['how to test', 'what is testing'],
+      emotionalResonance: 'discovery',
+      problemSolutionPair: true,
+      confidenceScore: 0.95,
+      actionRequired: true,
+      knowledgeDomain: 'testing',
+    }, config);
+
+    expect(memory.questionTypes).toEqual(['how to test', 'what is testing']);
+    expect(memory.emotionalResonance).toBe('discovery');
+    expect(memory.problemSolutionPair).toBe(true);
+    expect(memory.confidenceScore).toBe(0.95);
+    expect(memory.actionRequired).toBe(true);
+    expect(memory.knowledgeDomain).toBe('testing');
   });
 });
 

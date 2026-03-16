@@ -5,4 +5,4 @@
 
 export { ContextType, type Memory, type Config, type EmbeddingConfig, type LlmConfig } from '../storage/schema';
 export type { AddMemoryInput } from '../core/memory';
-export type { SearchResult, SearchOptions } from '../core/search';
+export type { SearchResult, SearchOptions, ScoringComponents, ScoredMemory } from '../core/search';

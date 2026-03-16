@@ -42,6 +42,24 @@ export function initDatabase(dbPath: string): Database {
     // Column already exists — ignore
   }
 
+  // Migration: add smart recall metadata columns
+  const smartRecallColumns = [
+    { name: 'question_types', type: 'TEXT' },
+    { name: 'emotional_resonance', type: 'TEXT' },
+    { name: 'problem_solution_pair', type: 'INTEGER DEFAULT 0' },
+    { name: 'confidence_score', type: 'REAL DEFAULT 0.8' },
+    { name: 'action_required', type: 'INTEGER DEFAULT 0' },
+    { name: 'knowledge_domain', type: "TEXT DEFAULT ''" },
+  ];
+  for (const col of smartRecallColumns) {
+    try {
+      db.run(`ALTER TABLE memories ADD COLUMN ${col.name} ${col.type}`);
+      logger.debug(`Added ${col.name} column to memories table`);
+    } catch {
+      // Column already exists — ignore
+    }
+  }
+
   logger.debug('Database initialized successfully');
   return db;
 }

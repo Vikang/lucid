@@ -9,6 +9,12 @@ export enum ContextType {
   WORKFLOW_PATTERN = 'WORKFLOW_PATTERN',
   DEBUGGING_INSIGHT = 'DEBUGGING_INSIGHT',
   PERSONAL_CONTEXT = 'PERSONAL_CONTEXT',
+  // NEW — from RLabs
+  BREAKTHROUGH = 'BREAKTHROUGH',
+  UNRESOLVED = 'UNRESOLVED',
+  MILESTONE = 'MILESTONE',
+  RELATIONSHIP = 'RELATIONSHIP',
+  TECHNICAL_IMPLEMENTATION = 'TECHNICAL_IMPLEMENTATION',
 }
 
 export interface Memory {
@@ -23,6 +29,13 @@ export interface Memory {
   createdAt: string;
   lastAccessed: string | null;
   accessCount: number;
+  // NEW — needed for RLabs algorithm
+  questionTypes: string[];
+  emotionalResonance: string;
+  problemSolutionPair: boolean;
+  confidenceScore: number;
+  actionRequired: boolean;
+  knowledgeDomain: string;
 }
 
 export interface EmbeddingConfig {
@@ -58,7 +71,13 @@ CREATE TABLE IF NOT EXISTS memories (
   embedding_dim INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   last_accessed TEXT,
-  access_count INTEGER DEFAULT 0
+  access_count INTEGER DEFAULT 0,
+  question_types TEXT,
+  emotional_resonance TEXT,
+  problem_solution_pair INTEGER DEFAULT 0,
+  confidence_score REAL DEFAULT 0.8,
+  action_required INTEGER DEFAULT 0,
+  knowledge_domain TEXT DEFAULT ''
 );
 `;
 

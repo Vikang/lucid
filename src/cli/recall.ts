@@ -1,5 +1,5 @@
 /**
- * `lucid recall` — Search memories semantically.
+ * `lucid recall` — Search memories semantically with smart scoring.
  */
 
 import { Command } from 'commander';
@@ -43,7 +43,8 @@ export const recallCommand = new Command('recall')
       console.log(chalk.bold(`Found ${results.length} memories:\n`));
       for (const r of results) {
         const scoreColor = r.score >= 0.8 ? chalk.green : r.score >= 0.5 ? chalk.yellow : chalk.dim;
-        console.log(`  ${scoreColor(`[${r.score.toFixed(3)}]`)} ${r.content}`);
+        console.log(`  ${scoreColor(`[${r.score.toFixed(2)}]`)} ${r.content}`);
+        console.log(`  ${chalk.cyan('→')} ${r.reasoning}`);
         console.log(`  ${chalk.dim(`tags: ${r.tags.join(', ') || 'none'} | importance: ${r.importance} | ${r.contextType}`)}`);
         console.log();
       }
