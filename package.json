@@ -10,7 +10,9 @@
     "dev": "bun bin/lucid.ts",
     "test": "bun test",
     "build": "bun build bin/lucid.ts --outdir dist --target node",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "security-check": "bash scripts/security-check.sh",
+    "prepublishOnly": "bash scripts/security-check.sh"
   },
   "keywords": [
     "ai",
