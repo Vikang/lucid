@@ -10,6 +10,7 @@ import { recallCommand } from './recall';
 import { listCommand } from './list';
 import { forgetCommand } from './forget';
 import { configCommand } from './config';
+import { addCommand } from './add';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -26,6 +27,7 @@ export function createProgram(): Command {
   program.addCommand(listCommand);
   program.addCommand(forgetCommand);
   program.addCommand(configCommand);
+  program.addCommand(addCommand);
 
   return program;
 }

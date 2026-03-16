@@ -26,12 +26,12 @@ export interface Memory {
 }
 
 export interface EmbeddingConfig {
-  provider: string;
+  provider: 'local' | 'openai' | 'gemini' | 'mock' | string;
   model: string;
 }
 
 export interface LlmConfig {
-  provider: string;
+  provider: 'none' | 'ollama' | 'anthropic' | 'openai' | 'gemini' | 'mock' | string;
   model: string;
 }
 
@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS memories (
   source_session TEXT,
   temporal_relevance TEXT DEFAULT 'persistent',
   embedding TEXT,
+  embedding_dim INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   last_accessed TEXT,
   access_count INTEGER DEFAULT 0

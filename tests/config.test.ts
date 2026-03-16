@@ -25,13 +25,16 @@ describe('resolveDataDir', () => {
 });
 
 describe('loadConfig', () => {
-  test('returns defaults when no config file exists', () => {
-    // Default loadConfig reads from ~/.lucid/config.json
-    // If it doesn't exist, it returns defaults
+  test('returns valid config with expected shape', () => {
+    // loadConfig reads from ~/.lucid/config.json if it exists,
+    // otherwise returns defaults. Either way, the shape is valid.
     const config = loadConfig();
     expect(config.version).toBe('0.1.0');
     expect(config.embedding).toBeDefined();
+    expect(typeof config.embedding.provider).toBe('string');
+    expect(typeof config.embedding.model).toBe('string');
     expect(config.llm).toBeDefined();
+    expect(typeof config.llm.provider).toBe('string');
     expect(config.dataDir).toBeDefined();
   });
 });

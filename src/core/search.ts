@@ -2,7 +2,7 @@
  * Semantic search over memories using cosine similarity.
  *
  * Brute-force approach — fine for v0.1 with <10k memories.
- * Vectra optimization planned for v0.2.
+ * Only compares vectors of the same dimension to avoid mismatches.
  */
 
 import { logger } from '../utils/logger';
@@ -31,6 +31,7 @@ interface MemoryWithEmbedding {
   source_session: string | null;
   temporal_relevance: string;
   embedding: string | null;
+  embedding_dim: number | null;
   created_at: string;
   last_accessed: string | null;
   access_count: number;
@@ -63,6 +64,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 
 /**
  * Search memories semantically using vector similarity.
+ * Only compares against memories with the same embedding dimension.
  */
 export async function searchMemories(
   query: string,
@@ -74,17 +76,19 @@ export async function searchMemories(
 
   // Generate query embedding
   const queryEmbedding = await embed(query, config);
+  const queryDim = queryEmbedding.length;
 
   const dbPath = getDbPath(config);
   const db = initDatabase(dbPath);
 
   try {
-    // Load all memories with embeddings
+    // Load only memories with matching embedding dimension
+    // Also include memories with NULL embedding_dim for backward compat (try to match by parsing)
     const rows = db.query(
-      'SELECT * FROM memories WHERE embedding IS NOT NULL',
-    ).all() as MemoryWithEmbedding[];
+      'SELECT * FROM memories WHERE embedding IS NOT NULL AND (embedding_dim = ? OR embedding_dim IS NULL)',
+    ).all(queryDim) as MemoryWithEmbedding[];
 
-    logger.debug(`Comparing against ${rows.length} memories with embeddings`);
+    logger.debug(`Comparing against ${rows.length} memories with embeddings (dim=${queryDim})`);
 
     // Compute similarity scores
     const scored: { row: MemoryWithEmbedding; score: number }[] = [];
@@ -97,6 +101,12 @@ export async function searchMemories(
         memoryEmbedding = JSON.parse(row.embedding) as number[];
       } catch {
         logger.warn(`Invalid embedding for memory ${row.id}, skipping`);
+        continue;
+      }
+
+      // Skip if dimensions don't match (for NULL embedding_dim rows)
+      if (memoryEmbedding.length !== queryDim) {
+        logger.debug(`Skipping memory ${row.id}: dimension mismatch (${memoryEmbedding.length} vs ${queryDim})`);
         continue;
       }
 

@@ -12,12 +12,12 @@ import { logger } from '../utils/logger';
 const DEFAULT_CONFIG: Config = {
   dataDir: '~/.lucid',
   embedding: {
-    provider: 'openai',
-    model: 'text-embedding-3-small',
+    provider: 'local',
+    model: 'Xenova/all-MiniLM-L6-v2',
   },
   llm: {
-    provider: 'anthropic',
-    model: 'claude-sonnet-4-20250514',
+    provider: 'none',
+    model: '',
   },
   version: '0.1.0',
 };

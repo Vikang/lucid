@@ -43,9 +43,13 @@ export const initCommand = new Command('init')
     initDatabase(dbPath);
     closeDatabase();
 
-    console.log(chalk.green('✓') + ' Lucid initialized successfully!');
-    console.log(`  Config: ${dataDir}/config.json`);
-    console.log(`  Database: ${dbPath}`);
-    console.log(`  Embedding: ${config.embedding.provider} (${config.embedding.model})`);
-    console.log(`  LLM: ${config.llm.provider} (${config.llm.model})`);
+    console.log(chalk.green('✓') + ' Lucid initialized at ' + dataDir + '/');
+
+    if (config.embedding.provider === 'local') {
+      console.log(chalk.blue('ℹ') + ' Local embedding model will download on first use (~80MB)');
+      console.log(chalk.blue('ℹ') + ' No API keys needed! Run \'lucid add\' to store memories, \'lucid recall\' to search.');
+    } else {
+      console.log(`  Embedding: ${config.embedding.provider} (${config.embedding.model})`);
+      console.log(`  LLM: ${config.llm.provider} (${config.llm.model})`);
+    }
   }));

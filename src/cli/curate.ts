@@ -21,6 +21,18 @@ export const curateCommand = new Command('curate')
   .action(wrapAction(async (opts: { file?: string; text?: string; json?: boolean; dryRun?: boolean }) => {
     const config = loadConfig();
 
+    // Check if LLM is configured
+    if (config.llm.provider === 'none') {
+      console.log(chalk.yellow('lucid curate is an optional feature that requires an LLM provider.\n'));
+      console.log('To use it, configure one of these options:');
+      console.log(`  ${chalk.cyan('lucid config set llm.provider ollama')}    # Local (free, needs Ollama installed)`);
+      console.log(`  ${chalk.cyan('lucid config set llm.provider anthropic')} # API (needs ANTHROPIC_API_KEY)`);
+      console.log(`  ${chalk.cyan('lucid config set llm.provider openai')}    # API (needs OPENAI_API_KEY)`);
+      console.log(`  ${chalk.cyan('lucid config set llm.provider gemini')}    # API (needs GEMINI_API_KEY)`);
+      console.log(`\nTip: You don't need curate! Your AI agent can extract memories and use ${chalk.bold('lucid add')} directly.`);
+      return;
+    }
+
     // Read transcript from file, text, or stdin
     const transcript = await readTranscript({
       file: opts.file,

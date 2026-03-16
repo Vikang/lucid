@@ -1,7 +1,8 @@
 /**
- * Embedding generation — OpenAI, Anthropic, Gemini, or mock provider.
+ * Embedding generation — local (transformers.js), OpenAI, Gemini, or mock provider.
  *
- * Generates vector embeddings for text using the configured provider.
+ * Default: local embeddings via @huggingface/transformers (no API key needed).
+ * The local pipeline is cached as a singleton for performance.
  */
 
 import OpenAI from 'openai';
@@ -11,6 +12,33 @@ import { ApiKeyError, ProviderError } from '../utils/errors';
 import type { Config } from '../storage/schema';
 
 let openaiClient: OpenAI | null = null;
+
+/** Singleton cache for the local transformers.js pipeline. */
+let pipelineInstance: unknown = null;
+
+/**
+ * Get or create the local embedding pipeline (singleton).
+ * Model downloads lazily on first call (~80MB).
+ */
+async function getLocalPipeline(): Promise<unknown> {
+  if (pipelineInstance) return pipelineInstance;
+
+  logger.debug('Loading local embedding model (Xenova/all-MiniLM-L6-v2)...');
+  const { pipeline } = await import('@huggingface/transformers');
+  pipelineInstance = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+  logger.debug('Local embedding model loaded');
+  return pipelineInstance;
+}
+
+/**
+ * Generate an embedding via local transformers.js pipeline.
+ * Returns a 384-dim normalized vector.
+ */
+async function embedLocal(text: string): Promise<number[]> {
+  const extractor = await getLocalPipeline() as (text: string, options: { pooling: string; normalize: boolean }) => Promise<{ data: Float32Array; dims: number[] }>;
+  const result = await extractor(text, { pooling: 'mean', normalize: true });
+  return Array.from(result.data);
+}
 
 /**
  * Get or create the OpenAI client.
@@ -59,12 +87,12 @@ async function embedGemini(text: string, model: string): Promise<number[]> {
 
 /**
  * Deterministic mock embedding for testing.
- * Returns a 1536-dim vector derived from a simple hash of the text
- * so identical texts always produce identical vectors, but different
- * texts produce different vectors.
+ * Returns a 384-dim vector (matching local model dimensions) derived from
+ * a simple hash of the text so identical texts always produce identical
+ * vectors, but different texts produce different vectors.
  */
 function embedMock(text: string): number[] {
-  const dim = 1536;
+  const dim = 384;
   // Simple hash: sum char codes with position weighting
   let seed = 0;
   for (let i = 0; i < text.length; i++) {
@@ -81,6 +109,9 @@ export async function embed(text: string, config: Config): Promise<number[]> {
 
   const provider = config.embedding.provider;
 
+  if (provider === 'local') {
+    return embedLocal(text);
+  }
   if (provider === 'openai') {
     return embedOpenAI(text, config.embedding.model);
   }
@@ -93,7 +124,7 @@ export async function embed(text: string, config: Config): Promise<number[]> {
 
   throw new ProviderError(
     `Unsupported embedding provider: "${provider}". ` +
-    'Supported providers: "openai", "gemini".',
+    'Supported providers: "local", "openai", "gemini".',
   );
 }
 
@@ -106,6 +137,15 @@ export async function embedBatch(texts: string[], config: Config): Promise<numbe
   if (texts.length === 0) return [];
 
   const provider = config.embedding.provider;
+
+  if (provider === 'local') {
+    // Process sequentially with the singleton pipeline
+    const results: number[][] = [];
+    for (const text of texts) {
+      results.push(await embedLocal(text));
+    }
+    return results;
+  }
 
   if (provider === 'openai') {
     const client = getOpenAIClient();
@@ -133,6 +173,6 @@ export async function embedBatch(texts: string[], config: Config): Promise<numbe
 
   throw new ProviderError(
     `Unsupported embedding provider: "${provider}". ` +
-    'Supported providers: "openai", "gemini".',
+    'Supported providers: "local", "openai", "gemini".',
   );
 }

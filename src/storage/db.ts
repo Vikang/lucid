@@ -34,6 +34,14 @@ export function initDatabase(dbPath: string): Database {
     // Column already exists — ignore
   }
 
+  // Migration: add embedding_dim column for dimension tracking
+  try {
+    db.run('ALTER TABLE memories ADD COLUMN embedding_dim INTEGER');
+    logger.debug('Added embedding_dim column to memories table');
+  } catch {
+    // Column already exists — ignore
+  }
+
   logger.debug('Database initialized successfully');
   return db;
 }
@@ -66,4 +74,15 @@ export function closeDatabase(): void {
 export function getMemoryCount(database: Database): number {
   const row = database.query('SELECT COUNT(*) as count FROM memories').get() as { count: number };
   return row.count;
+}
+
+/**
+ * Get distinct embedding dimensions present in the database.
+ * Returns an array of { dim, count } objects.
+ */
+export function getEmbeddingDimStats(database: Database): { dim: number | null; count: number }[] {
+  const rows = database.query(
+    'SELECT embedding_dim as dim, COUNT(*) as count FROM memories WHERE embedding IS NOT NULL GROUP BY embedding_dim',
+  ).all() as { dim: number | null; count: number }[];
+  return rows;
 }

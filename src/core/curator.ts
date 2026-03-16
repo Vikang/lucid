@@ -3,7 +3,7 @@
  *
  * Analyzes conversation transcripts and extracts structured memories
  * with importance scoring, categorization, and trigger phrases.
- * Supports OpenAI, Anthropic, Gemini, and a deterministic mock provider.
+ * Supports Ollama (local), OpenAI, Anthropic, Gemini, and a deterministic mock provider.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -61,6 +61,18 @@ export async function curateTranscript(
 ): Promise<AddMemoryInput[]> {
   logger.debug(`Curating transcript (${transcript.length} chars) with ${config.llm.provider}/${config.llm.model}`);
 
+  if (config.llm.provider === 'none') {
+    throw new ProviderError(
+      'lucid curate is an optional feature that requires an LLM provider.\n\n' +
+      'To use it, configure one of these options:\n' +
+      '  lucid config set llm.provider ollama    # Local (free, needs Ollama installed)\n' +
+      '  lucid config set llm.provider anthropic # API (needs ANTHROPIC_API_KEY)\n' +
+      '  lucid config set llm.provider openai    # API (needs OPENAI_API_KEY)\n' +
+      '  lucid config set llm.provider gemini    # API (needs GEMINI_API_KEY)\n\n' +
+      'Tip: You don\'t need curate! Your AI agent can extract memories and use \'lucid add\' directly.',
+    );
+  }
+
   const fullPrompt = EXTRACTION_PROMPT + transcript;
   let responseText: string;
 
@@ -74,13 +86,16 @@ export async function curateTranscript(
     case 'gemini':
       responseText = await callGemini(fullPrompt, config.llm.model);
       break;
+    case 'ollama':
+      responseText = await callOllama(fullPrompt, config.llm.model);
+      break;
     case 'mock':
       responseText = mockLlmResponse(transcript);
       break;
     default:
       throw new ProviderError(
         `Unsupported LLM provider: "${config.llm.provider}". ` +
-        'Supported providers: "anthropic", "openai", "gemini".',
+        'Supported providers: "ollama", "anthropic", "openai", "gemini".',
       );
   }
 
@@ -160,6 +175,45 @@ async function callGemini(prompt: string, model: string): Promise<string> {
     throw new ValidationError('Empty response from Gemini API');
   }
   return text;
+}
+
+/**
+ * Call Ollama's local API for memory extraction.
+ * No API key needed — just requires Ollama running locally.
+ */
+async function callOllama(prompt: string, model: string): Promise<string> {
+  const ollamaModel = model || 'llama3.2';
+
+  try {
+    const response = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: ollamaModel,
+        prompt,
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama returned status ${response.status}`);
+    }
+
+    const data = await response.json() as { response: string };
+    if (!data.response) {
+      throw new ValidationError('Empty response from Ollama');
+    }
+    return data.response;
+  } catch (err) {
+    if (err instanceof ValidationError) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('ECONNREFUSED') || message.includes('fetch failed')) {
+      throw new ProviderError(
+        'Ollama not running. Start it with \'ollama serve\' or install from https://ollama.com',
+      );
+    }
+    throw new ProviderError(`Ollama error: ${message}`);
+  }
 }
 
 /**

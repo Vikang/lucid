@@ -102,6 +102,15 @@ describe('curateTranscript', () => {
     await expect(curateTranscript('test transcript', badConfig)).rejects.toBeInstanceOf(ProviderError);
   });
 
+  test('throws ProviderError when provider is none', async () => {
+    const noneConfig: Config = {
+      ...mockConfig,
+      llm: { provider: 'none', model: '' },
+    };
+
+    await expect(curateTranscript('test transcript', noneConfig)).rejects.toBeInstanceOf(ProviderError);
+  });
+
   test('throws ApiKeyError when anthropic key not set', async () => {
     const origKey = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;

@@ -51,9 +51,9 @@ describe('embed', () => {
     await expect(embed('test', badConfig)).rejects.toBeInstanceOf(ProviderError);
   });
 
-  test('mock provider returns deterministic vector', async () => {
+  test('mock provider returns deterministic 384-dim vector', async () => {
     const result = await embed('hello', mockConfig);
-    expect(result).toHaveLength(1536);
+    expect(result).toHaveLength(384);
 
     // Same input = same output
     const result2 = await embed('hello', mockConfig);
@@ -81,10 +81,10 @@ describe('embedBatch', () => {
     await expect(embedBatch(['test'], badConfig)).rejects.toBeInstanceOf(ProviderError);
   });
 
-  test('mock provider returns correct number of vectors', async () => {
+  test('mock provider returns correct number of 384-dim vectors', async () => {
     const texts = ['hello', 'world', 'test'];
     const result = await embedBatch(texts, mockConfig);
     expect(result).toHaveLength(3);
-    expect(result[0]).toHaveLength(1536);
+    expect(result[0]).toHaveLength(384);
   });
 });

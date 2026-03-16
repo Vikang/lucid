@@ -85,8 +85,8 @@ configCommand
     // Reset to defaults but keep dataDir so we write to the right place
     const defaultConfig = {
       dataDir: config.dataDir,
-      embedding: { provider: 'openai', model: 'text-embedding-3-small' },
-      llm: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+      embedding: { provider: 'local', model: 'Xenova/all-MiniLM-L6-v2' },
+      llm: { provider: 'none', model: '' },
       version: '0.1.0',
     };
     saveConfig(defaultConfig);

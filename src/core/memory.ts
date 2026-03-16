@@ -69,9 +69,11 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
   try {
     // Generate embedding
     let embeddingJson: string | null = null;
+    let embeddingDim: number | null = null;
     try {
       const vector = await embed(input.content, config);
       embeddingJson = JSON.stringify(vector);
+      embeddingDim = vector.length;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn(`Failed to generate embedding: ${message}. Memory saved without embedding.`);
@@ -79,8 +81,8 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
 
     // Insert memory row
     db.run(
-      `INSERT INTO memories (id, content, importance, context_type, trigger_phrases, source_session, temporal_relevance, embedding, created_at, last_accessed, access_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0)`,
+      `INSERT INTO memories (id, content, importance, context_type, trigger_phrases, source_session, temporal_relevance, embedding, embedding_dim, created_at, last_accessed, access_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0)`,
       [
         id,
         input.content,
@@ -90,6 +92,7 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
         input.sourceSession ?? now,
         input.temporalRelevance ?? 'persistent',
         embeddingJson,
+        embeddingDim,
         now,
       ],
     );

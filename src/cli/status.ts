@@ -5,7 +5,7 @@
 import { Command } from 'commander';
 import { existsSync, statSync } from 'node:fs';
 import { loadConfig, resolveDataDir, getConfigPath, getDbPath } from '../config';
-import { initDatabase, getMemoryCount, closeDatabase } from '../storage/db';
+import { initDatabase, getMemoryCount, getEmbeddingDimStats, closeDatabase } from '../storage/db';
 import { wrapAction } from '../utils/cli-wrapper';
 import chalk from 'chalk';
 
@@ -31,15 +31,35 @@ export const statusCommand = new Command('status')
 
       const db = initDatabase(dbPath);
       const count = getMemoryCount(db);
+      const dimStats = getEmbeddingDimStats(db);
       closeDatabase();
 
       console.log(`  Database:     ${dbPath} (${sizeKb} KB)`);
       console.log(`  Memories:     ${count}`);
+
+      // Show dimension stats
+      if (dimStats.length > 0) {
+        const dims = dimStats.map((s) => `${s.dim ?? 'unknown'}d (${s.count})`).join(', ');
+        console.log(`  Embeddings:   ${dims}`);
+
+        // Warn about mixed dimensions
+        const distinctDims = dimStats.filter((s) => s.dim !== null).map((s) => s.dim);
+        if (distinctDims.length > 1) {
+          console.log(chalk.yellow('  ⚠ Mixed embedding dimensions detected!'));
+          console.log(chalk.yellow('    Memories with different dimensions cannot be compared.'));
+          console.log(chalk.yellow('    Consider re-embedding with a single provider.'));
+        }
+      }
     } else {
       console.log(`  Database:     ${chalk.dim('not created yet')}`);
       console.log(`  Memories:     ${chalk.dim('—')}`);
     }
 
-    console.log(`  Embedding:    ${config.embedding.provider} (${config.embedding.model})`);
-    console.log(`  LLM:          ${config.llm.provider} (${config.llm.model})`);
+    console.log(`  Embedding:    ${config.embedding.provider} (${config.embedding.model || 'default'})`);
+
+    if (config.llm.provider === 'none') {
+      console.log(`  LLM:          ${chalk.dim('none (curate disabled — use \'lucid add\' instead)')}`);
+    } else {
+      console.log(`  LLM:          ${config.llm.provider} (${config.llm.model || 'default'})`);
+    }
   }));

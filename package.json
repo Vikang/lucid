@@ -41,6 +41,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@google/generative-ai": "^0.24.1",
+    "@huggingface/transformers": "^3.8.1",
     "chalk": "^5.4.0",
     "commander": "^13.0.0",
     "openai": "^6.29.0",
