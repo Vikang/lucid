@@ -1,0 +1,11 @@
+tests/
+.git/
+node_modules/
+*.db
+.lucid/
+bunfig.toml
+tsconfig.json
+bun.lock
+dist/
+.github/
+AGENTS.md
