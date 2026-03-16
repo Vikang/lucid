@@ -8,6 +8,7 @@ import { statusCommand } from './status';
 import { curateCommand } from './curate';
 import { recallCommand } from './recall';
 import { listCommand } from './list';
+import { forgetCommand } from './forget';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -22,6 +23,7 @@ export function createProgram(): Command {
   program.addCommand(curateCommand);
   program.addCommand(recallCommand);
   program.addCommand(listCommand);
+  program.addCommand(forgetCommand);
 
   return program;
 }

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS memories (
   trigger_phrases TEXT,
   source_session TEXT,
   temporal_relevance TEXT DEFAULT 'persistent',
+  embedding TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   last_accessed TEXT,
   access_count INTEGER DEFAULT 0

@@ -26,6 +26,14 @@ export function initDatabase(dbPath: string): Database {
   db.run(CREATE_MEMORIES_TABLE);
   db.run(CREATE_MEMORY_TAGS_TABLE);
 
+  // Migration: add embedding column if it doesn't exist (for DBs created before Phase 1)
+  try {
+    db.run('ALTER TABLE memories ADD COLUMN embedding TEXT');
+    logger.debug('Added embedding column to memories table');
+  } catch {
+    // Column already exists — ignore
+  }
+
   logger.debug('Database initialized successfully');
   return db;
 }
