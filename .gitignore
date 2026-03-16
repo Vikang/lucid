@@ -4,3 +4,5 @@ dist/
 *.db-journal
 bun.lock
 .DS_Store
+IMPLEMENTATION-PLAN-SMART-RECALL.md
+IMPLEMENTATION-PLAN-EPISODIC.md
