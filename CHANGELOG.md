@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0] — 2026-03-16
+
+### Added
+- **OpenClaw Import** — `lucid import openclaw` bulk imports past conversations
+  - Scans all agent sessions (zoro, robin, main)
+  - Security sanitization: redacts API keys, OAT tokens, Bearer tokens, npm tokens
+  - Strips tool output and system metadata — only human + AI text imported
+  - Channel detection and auto-labeling
+  - Duplicate prevention via source session tracking
+  - Options: --dry-run, --agent, --channel, --since, --yes, --verbose, --json
+  - Confirmation prompt with consent summary (skippable with --yes)
+- 34 new tests (security, sanitization, parser, engine)
+
+
 ## [0.2.0] — 2026-03-16
 
 ### Added
@@ -49,3 +63,4 @@
 - Anthropic + OpenAI LLM support for curation
 - SQLite storage with embedded vectors
 - 28 tests
+
