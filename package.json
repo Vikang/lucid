@@ -1,0 +1,27 @@
+{
+  "name": "lucid-memory",
+  "version": "0.1.0",
+  "description": "CLI-first unified memory layer for AI agents",
+  "type": "module",
+  "bin": {
+    "lucid": "./bin/lucid.ts"
+  },
+  "scripts": {
+    "dev": "bun bin/lucid.ts",
+    "test": "bun test",
+    "build": "bun build bin/lucid.ts --outdir dist --target node",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "chalk": "^5.4.0",
+    "commander": "^13.0.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/bun": "^1.3.0",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.9.0"
+  }
+}
