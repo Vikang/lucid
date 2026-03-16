@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { searchMemories } from '../core/search';
 import { loadConfig } from '../config';
 import { logger } from '../utils/logger';
+import { wrapAction } from '../utils/cli-wrapper';
 import chalk from 'chalk';
 
 export const recallCommand = new Command('recall')
@@ -14,7 +15,7 @@ export const recallCommand = new Command('recall')
   .option('-n, --limit <n>', 'Max results', '5')
   .option('--json', 'Output as JSON')
   .option('--min-score <threshold>', 'Minimum similarity score', '0.0')
-  .action(async (query: string, opts: { limit: string; json?: boolean; minScore: string }) => {
+  .action(wrapAction(async (query: string, opts: { limit: string; json?: boolean; minScore: string }) => {
     const config = loadConfig();
     const limit = parseInt(opts.limit, 10);
     const minScore = parseFloat(opts.minScore);
@@ -47,4 +48,4 @@ export const recallCommand = new Command('recall')
         console.log();
       }
     }
-  });
+  }));

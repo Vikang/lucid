@@ -8,6 +8,8 @@ import { curateTranscript } from '../core/curator';
 import { addMemory } from '../core/memory';
 import { loadConfig } from '../config';
 import { logger } from '../utils/logger';
+import { wrapAction } from '../utils/cli-wrapper';
+import { ValidationError } from '../utils/errors';
 import chalk from 'chalk';
 
 export const curateCommand = new Command('curate')
@@ -16,7 +18,7 @@ export const curateCommand = new Command('curate')
   .option('-t, --text <string>', 'Pass transcript text directly')
   .option('--json', 'Output as JSON')
   .option('--dry-run', 'Extract memories but don\'t save them')
-  .action(async (opts: { file?: string; text?: string; json?: boolean; dryRun?: boolean }) => {
+  .action(wrapAction(async (opts: { file?: string; text?: string; json?: boolean; dryRun?: boolean }) => {
     const config = loadConfig();
 
     // Read transcript from file, text, or stdin
@@ -24,6 +26,10 @@ export const curateCommand = new Command('curate')
       file: opts.file,
       text: opts.text,
     });
+
+    if (!transcript.trim()) {
+      throw new ValidationError('Transcript is empty. Provide a non-empty transcript to curate.');
+    }
 
     logger.info(`Read transcript (${transcript.length} chars)`);
 
@@ -70,4 +76,4 @@ export const curateCommand = new Command('curate')
         console.log();
       }
     }
-  });
+  }));

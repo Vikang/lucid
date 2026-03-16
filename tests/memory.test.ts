@@ -1,15 +1,14 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { addMemory, getMemory, deleteMemory, listMemories } from '../src/core/memory';
 import type { Config } from '../src/storage/schema';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdirSync, rmSync } from 'node:fs';
 
-// Mock the embedder to avoid real API calls
-mock.module('../src/core/embedder', () => ({
-  embed: async () => Array(1536).fill(0).map((_, i) => Math.sin(i) * 0.1),
-  embedBatch: async (texts: string[]) => texts.map(() => Array(1536).fill(0).map((_, i) => Math.sin(i) * 0.1)),
-}));
+/**
+ * Uses the built-in mock embedding provider instead of mock.module
+ * so it doesn't leak into other test files.
+ */
 
 let tmpDir: string;
 let config: Config;
@@ -19,8 +18,8 @@ function freshConfig(): Config {
   mkdirSync(tmpDir, { recursive: true });
   return {
     dataDir: tmpDir,
-    embedding: { provider: 'openai', model: 'text-embedding-3-small' },
-    llm: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+    embedding: { provider: 'mock', model: 'mock' },
+    llm: { provider: 'mock', model: 'mock' },
     version: '0.1.0',
   };
 }

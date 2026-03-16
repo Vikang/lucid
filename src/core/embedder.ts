@@ -1,12 +1,13 @@
 /**
- * Embedding generation via OpenAI API.
+ * Embedding generation — OpenAI, Anthropic, Gemini, or mock provider.
  *
- * Generates vector embeddings for text using OpenAI's embedding models.
- * Local provider support is planned for a future version.
+ * Generates vector embeddings for text using the configured provider.
  */
 
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../utils/logger';
+import { ApiKeyError, ProviderError } from '../utils/errors';
 import type { Config } from '../storage/schema';
 
 let openaiClient: OpenAI | null = null;
@@ -19,7 +20,7 @@ function getOpenAIClient(): OpenAI {
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error(
+    throw new ApiKeyError(
       'Set OPENAI_API_KEY environment variable or configure a local embedding provider.\n' +
       'Get an API key at https://platform.openai.com/api-keys',
     );
@@ -30,25 +31,70 @@ function getOpenAIClient(): OpenAI {
 }
 
 /**
+ * Generate an embedding via OpenAI.
+ */
+async function embedOpenAI(text: string, model: string): Promise<number[]> {
+  const client = getOpenAIClient();
+  const response = await client.embeddings.create({ model, input: text });
+  return response.data[0].embedding;
+}
+
+/**
+ * Generate an embedding via Google Gemini.
+ */
+async function embedGemini(text: string, model: string): Promise<number[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new ApiKeyError(
+      'Set GEMINI_API_KEY environment variable for Gemini embeddings.\n' +
+      'Get an API key at https://aistudio.google.com/app/apikey',
+    );
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const embeddingModel = genAI.getGenerativeModel({ model });
+  const result = await embeddingModel.embedContent(text);
+  return result.embedding.values;
+}
+
+/**
+ * Deterministic mock embedding for testing.
+ * Returns a 1536-dim vector derived from a simple hash of the text
+ * so identical texts always produce identical vectors, but different
+ * texts produce different vectors.
+ */
+function embedMock(text: string): number[] {
+  const dim = 1536;
+  // Simple hash: sum char codes with position weighting
+  let seed = 0;
+  for (let i = 0; i < text.length; i++) {
+    seed = ((seed << 5) - seed + text.charCodeAt(i)) | 0;
+  }
+  return Array.from({ length: dim }, (_, i) => Math.sin(seed + i) * 0.1);
+}
+
+/**
  * Generate an embedding vector for the given text.
  */
 export async function embed(text: string, config: Config): Promise<number[]> {
   logger.debug(`Generating embedding for text (${text.length} chars)`);
 
-  if (config.embedding.provider !== 'openai') {
-    throw new Error(
-      `Unsupported embedding provider: ${config.embedding.provider}. ` +
-      'Only "openai" is supported in v0.1. Local providers coming soon.',
-    );
+  const provider = config.embedding.provider;
+
+  if (provider === 'openai') {
+    return embedOpenAI(text, config.embedding.model);
+  }
+  if (provider === 'gemini') {
+    return embedGemini(text, config.embedding.model);
+  }
+  if (provider === 'mock') {
+    return embedMock(text);
   }
 
-  const client = getOpenAIClient();
-  const response = await client.embeddings.create({
-    model: config.embedding.model,
-    input: text,
-  });
-
-  return response.data[0].embedding;
+  throw new ProviderError(
+    `Unsupported embedding provider: "${provider}". ` +
+    'Supported providers: "openai", "gemini".',
+  );
 }
 
 /**
@@ -59,21 +105,34 @@ export async function embedBatch(texts: string[], config: Config): Promise<numbe
 
   if (texts.length === 0) return [];
 
-  if (config.embedding.provider !== 'openai') {
-    throw new Error(
-      `Unsupported embedding provider: ${config.embedding.provider}. ` +
-      'Only "openai" is supported in v0.1. Local providers coming soon.',
-    );
+  const provider = config.embedding.provider;
+
+  if (provider === 'openai') {
+    const client = getOpenAIClient();
+    const response = await client.embeddings.create({
+      model: config.embedding.model,
+      input: texts,
+    });
+    return response.data
+      .sort((a, b) => a.index - b.index)
+      .map((d) => d.embedding);
   }
 
-  const client = getOpenAIClient();
-  const response = await client.embeddings.create({
-    model: config.embedding.model,
-    input: texts,
-  });
+  if (provider === 'gemini') {
+    // Gemini doesn't have a native batch API — loop sequentially
+    const results: number[][] = [];
+    for (const text of texts) {
+      results.push(await embedGemini(text, config.embedding.model));
+    }
+    return results;
+  }
 
-  // OpenAI returns embeddings in the same order as input
-  return response.data
-    .sort((a, b) => a.index - b.index)
-    .map((d) => d.embedding);
+  if (provider === 'mock') {
+    return texts.map((t) => embedMock(t));
+  }
+
+  throw new ProviderError(
+    `Unsupported embedding provider: "${provider}". ` +
+    'Supported providers: "openai", "gemini".',
+  );
 }

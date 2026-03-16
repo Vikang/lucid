@@ -6,11 +6,12 @@ import { Command } from 'commander';
 import { existsSync, statSync } from 'node:fs';
 import { loadConfig, resolveDataDir, getConfigPath, getDbPath } from '../config';
 import { initDatabase, getMemoryCount, closeDatabase } from '../storage/db';
+import { wrapAction } from '../utils/cli-wrapper';
 import chalk from 'chalk';
 
 export const statusCommand = new Command('status')
   .description('Show Lucid status and configuration')
-  .action(() => {
+  .action(wrapAction(async () => {
     const config = loadConfig();
     const dataDir = resolveDataDir(config.dataDir);
     const configPath = getConfigPath();
@@ -41,4 +42,4 @@ export const statusCommand = new Command('status')
 
     console.log(`  Embedding:    ${config.embedding.provider} (${config.embedding.model})`);
     console.log(`  LLM:          ${config.llm.provider} (${config.llm.model})`);
-  });
+  }));

@@ -3,11 +3,14 @@
  *
  * Analyzes conversation transcripts and extracts structured memories
  * with importance scoring, categorization, and trigger phrases.
+ * Supports OpenAI, Anthropic, Gemini, and a deterministic mock provider.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../utils/logger';
+import { ApiKeyError, ProviderError, ValidationError } from '../utils/errors';
 import type { Config } from '../storage/schema';
 import { ContextType } from '../storage/schema';
 import type { AddMemoryInput } from './memory';
@@ -61,18 +64,27 @@ export async function curateTranscript(
   const fullPrompt = EXTRACTION_PROMPT + transcript;
   let responseText: string;
 
-  if (config.llm.provider === 'anthropic') {
-    responseText = await callAnthropic(fullPrompt, config.llm.model);
-  } else if (config.llm.provider === 'openai') {
-    responseText = await callOpenAI(fullPrompt, config.llm.model);
-  } else {
-    throw new Error(
-      `Unsupported LLM provider: ${config.llm.provider}. ` +
-      'Supported providers: "anthropic", "openai".',
-    );
+  switch (config.llm.provider) {
+    case 'anthropic':
+      responseText = await callAnthropic(fullPrompt, config.llm.model);
+      break;
+    case 'openai':
+      responseText = await callOpenAI(fullPrompt, config.llm.model);
+      break;
+    case 'gemini':
+      responseText = await callGemini(fullPrompt, config.llm.model);
+      break;
+    case 'mock':
+      responseText = mockLlmResponse(transcript);
+      break;
+    default:
+      throw new ProviderError(
+        `Unsupported LLM provider: "${config.llm.provider}". ` +
+        'Supported providers: "anthropic", "openai", "gemini".',
+      );
   }
 
-  return parseAndValidate(responseText);
+  return parseLlmResponse(responseText);
 }
 
 /**
@@ -81,7 +93,7 @@ export async function curateTranscript(
 async function callAnthropic(prompt: string, model: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    throw new Error(
+    throw new ApiKeyError(
       'Set ANTHROPIC_API_KEY environment variable for memory curation.\n' +
       'Get an API key at https://console.anthropic.com/',
     );
@@ -91,14 +103,12 @@ async function callAnthropic(prompt: string, model: string): Promise<string> {
   const message = await client.messages.create({
     model,
     max_tokens: 4096,
-    messages: [
-      { role: 'user', content: prompt },
-    ],
+    messages: [{ role: 'user', content: prompt }],
   });
 
   const block = message.content[0];
   if (block.type !== 'text') {
-    throw new Error('Unexpected response type from Anthropic API');
+    throw new ValidationError('Unexpected response type from Anthropic API');
   }
   return block.text;
 }
@@ -109,7 +119,7 @@ async function callAnthropic(prompt: string, model: string): Promise<string> {
 async function callOpenAI(prompt: string, model: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error(
+    throw new ApiKeyError(
       'Set OPENAI_API_KEY environment variable for memory curation.\n' +
       'Get an API key at https://platform.openai.com/api-keys',
     );
@@ -118,23 +128,63 @@ async function callOpenAI(prompt: string, model: string): Promise<string> {
   const client = new OpenAI({ apiKey });
   const completion = await client.chat.completions.create({
     model,
-    messages: [
-      { role: 'user', content: prompt },
-    ],
+    messages: [{ role: 'user', content: prompt }],
     max_tokens: 4096,
   });
 
   const content = completion.choices[0]?.message?.content;
   if (!content) {
-    throw new Error('Empty response from OpenAI API');
+    throw new ValidationError('Empty response from OpenAI API');
   }
   return content;
 }
 
 /**
- * Parse the LLM response as JSON and validate each memory entry.
+ * Call Google Gemini API for memory extraction.
  */
-function parseAndValidate(responseText: string): AddMemoryInput[] {
+async function callGemini(prompt: string, model: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new ApiKeyError(
+      'Set GEMINI_API_KEY environment variable for memory curation.\n' +
+      'Get an API key at https://aistudio.google.com/app/apikey',
+    );
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const generativeModel = genAI.getGenerativeModel({ model });
+  const result = await generativeModel.generateContent(prompt);
+  const text = result.response.text();
+
+  if (!text) {
+    throw new ValidationError('Empty response from Gemini API');
+  }
+  return text;
+}
+
+/**
+ * Deterministic mock LLM response for testing.
+ * Returns a fixed JSON array based on the transcript content.
+ */
+function mockLlmResponse(transcript: string): string {
+  const memories = [
+    {
+      content: `Mock memory extracted from transcript (${transcript.length} chars)`,
+      importance: 0.7,
+      tags: ['mock', 'test'],
+      contextType: 'PROJECT_CONTEXT',
+      triggerPhrases: ['mock memory', 'test extraction'],
+      temporalRelevance: 'persistent',
+    },
+  ];
+  return JSON.stringify(memories);
+}
+
+/**
+ * Parse the LLM response as JSON and validate each memory entry.
+ * Exported for testing.
+ */
+export function parseLlmResponse(responseText: string): AddMemoryInput[] {
   // Strip markdown code fences if present
   let cleaned = responseText.trim();
   if (cleaned.startsWith('```json')) {
@@ -151,14 +201,14 @@ function parseAndValidate(responseText: string): AddMemoryInput[] {
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    throw new Error(
+    throw new ValidationError(
       'Failed to parse LLM response as JSON. The model returned invalid JSON.\n' +
       `Response preview: ${cleaned.slice(0, 200)}...`,
     );
   }
 
   if (!Array.isArray(parsed)) {
-    throw new Error('LLM response is not a JSON array. Expected an array of memory objects.');
+    throw new ValidationError('LLM response is not a JSON array. Expected an array of memory objects.');
   }
 
   const memories: AddMemoryInput[] = [];
@@ -173,6 +223,12 @@ function parseAndValidate(responseText: string): AddMemoryInput[] {
     const importance = typeof record.importance === 'number'
       ? Math.max(0, Math.min(1, record.importance))
       : 0.5;
+
+    if (typeof record.importance === 'number' && (record.importance < 0 || record.importance > 1)) {
+      throw new ValidationError(
+        `Invalid importance value: ${record.importance}. Must be between 0.0 and 1.0.`,
+      );
+    }
 
     const tags = Array.isArray(record.tags)
       ? record.tags.filter((t): t is string => typeof t === 'string').map((t) => t.toLowerCase())

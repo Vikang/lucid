@@ -5,12 +5,13 @@
 import { Command } from 'commander';
 import { deleteMemory, getMemory } from '../core/memory';
 import { loadConfig } from '../config';
+import { wrapAction } from '../utils/cli-wrapper';
 import chalk from 'chalk';
 
 export const forgetCommand = new Command('forget')
   .description('Delete a memory by ID')
   .argument('<id>', 'Memory ID to delete')
-  .action(async (id: string) => {
+  .action(wrapAction(async (id: string) => {
     const config = loadConfig();
 
     // Check if memory exists first
@@ -29,4 +30,4 @@ export const forgetCommand = new Command('forget')
       console.error(chalk.red(`Failed to delete memory ${id}`));
       process.exit(1);
     }
-  });
+  }));

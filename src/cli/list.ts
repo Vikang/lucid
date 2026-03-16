@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import { listMemories } from '../core/memory';
 import { loadConfig } from '../config';
+import { wrapAction } from '../utils/cli-wrapper';
 import chalk from 'chalk';
 
 export const listCommand = new Command('list')
@@ -12,7 +13,7 @@ export const listCommand = new Command('list')
   .option('--tag <tag>', 'Filter by tag')
   .option('-n, --limit <n>', 'Max results', '20')
   .option('--json', 'Output as JSON')
-  .action(async (opts: { tag?: string; limit: string; json?: boolean }) => {
+  .action(wrapAction(async (opts: { tag?: string; limit: string; json?: boolean }) => {
     const config = loadConfig();
     const limit = parseInt(opts.limit, 10);
 
@@ -44,4 +45,4 @@ export const listCommand = new Command('list')
         console.log();
       }
     }
-  });
+  }));

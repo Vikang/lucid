@@ -9,11 +9,12 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { loadConfig, saveConfig, resolveDataDir, getDbPath } from '../config';
 import { initDatabase, closeDatabase } from '../storage/db';
 import { logger } from '../utils/logger';
+import { wrapAction } from '../utils/cli-wrapper';
 import chalk from 'chalk';
 
 export const initCommand = new Command('init')
   .description('Initialize Lucid data directory and database')
-  .action(() => {
+  .action(wrapAction(async () => {
     const config = loadConfig();
     const dataDir = resolveDataDir(config.dataDir);
 
@@ -47,4 +48,4 @@ export const initCommand = new Command('init')
     console.log(`  Database: ${dbPath}`);
     console.log(`  Embedding: ${config.embedding.provider} (${config.embedding.model})`);
     console.log(`  LLM: ${config.llm.provider} (${config.llm.model})`);
-  });
+  }));
