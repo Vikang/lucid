@@ -38,6 +38,12 @@ export interface Memory {
   knowledgeDomain: string;
   // Episode linking
   episodeId: string | null;
+  // Richer extraction metadata
+  metadata: Record<string, unknown> | null;
+  // Agent attribution
+  sourceAgent: string | null;
+  // Deduplication
+  contentHash: string | null;
 }
 
 export interface EmbeddingConfig {
@@ -79,7 +85,10 @@ CREATE TABLE IF NOT EXISTS memories (
   problem_solution_pair INTEGER DEFAULT 0,
   confidence_score REAL DEFAULT 0.8,
   action_required INTEGER DEFAULT 0,
-  knowledge_domain TEXT DEFAULT ''
+  knowledge_domain TEXT DEFAULT '',
+  metadata TEXT DEFAULT NULL,
+  source_agent TEXT DEFAULT NULL,
+  content_hash TEXT DEFAULT NULL
 );
 `;
 

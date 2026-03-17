@@ -176,4 +176,115 @@ describe('listMemories', () => {
     const memories = await listMemories(config);
     expect(memories).toEqual([]);
   });
+
+  test('filters by sourceAgent with --by', async () => {
+    await addMemory({ content: 'Robin memory', sourceAgent: 'robin' }, config);
+    await addMemory({ content: 'Zoro memory', sourceAgent: 'zoro' }, config);
+    await addMemory({ content: 'No agent memory' }, config);
+
+    const robinOnly = await listMemories(config, { sourceAgent: 'robin' });
+    expect(robinOnly.length).toBe(1);
+    expect(robinOnly[0].content).toBe('Robin memory');
+    expect(robinOnly[0].sourceAgent).toBe('robin');
+
+    const zoroOnly = await listMemories(config, { sourceAgent: 'zoro' });
+    expect(zoroOnly.length).toBe(1);
+    expect(zoroOnly[0].content).toBe('Zoro memory');
+  });
+
+  test('filters by tag and sourceAgent combined', async () => {
+    await addMemory({ content: 'Robin tagged', tags: ['lucid'], sourceAgent: 'robin' }, config);
+    await addMemory({ content: 'Zoro tagged', tags: ['lucid'], sourceAgent: 'zoro' }, config);
+    await addMemory({ content: 'Robin untagged', sourceAgent: 'robin' }, config);
+
+    const filtered = await listMemories(config, { tag: 'lucid', sourceAgent: 'robin' });
+    expect(filtered.length).toBe(1);
+    expect(filtered[0].content).toBe('Robin tagged');
+  });
+});
+
+describe('agent attribution', () => {
+  test('addMemory stores sourceAgent', async () => {
+    const memory = await addMemory({
+      content: 'Memory from robin',
+      sourceAgent: 'robin',
+    }, config);
+
+    expect(memory.sourceAgent).toBe('robin');
+
+    const retrieved = await getMemory(memory.id, config);
+    expect(retrieved).not.toBeNull();
+    expect(retrieved!.sourceAgent).toBe('robin');
+  });
+
+  test('addMemory defaults sourceAgent to null when not provided', async () => {
+    const memory = await addMemory({
+      content: 'Memory without agent',
+    }, config);
+
+    expect(memory.sourceAgent).toBeNull();
+
+    const retrieved = await getMemory(memory.id, config);
+    expect(retrieved).not.toBeNull();
+    expect(retrieved!.sourceAgent).toBeNull();
+  });
+
+  test('addMemory auto-detects from OPENCLAW_AGENT_ID env var', async () => {
+    const originalEnv = process.env.OPENCLAW_AGENT_ID;
+    try {
+      process.env.OPENCLAW_AGENT_ID = 'nami';
+
+      const memory = await addMemory({
+        content: 'Memory auto-detected agent',
+      }, config);
+
+      expect(memory.sourceAgent).toBe('nami');
+
+      const retrieved = await getMemory(memory.id, config);
+      expect(retrieved!.sourceAgent).toBe('nami');
+    } finally {
+      if (originalEnv === undefined) {
+        delete process.env.OPENCLAW_AGENT_ID;
+      } else {
+        process.env.OPENCLAW_AGENT_ID = originalEnv;
+      }
+    }
+  });
+
+  test('explicit sourceAgent takes priority over env var', async () => {
+    const originalEnv = process.env.OPENCLAW_AGENT_ID;
+    try {
+      process.env.OPENCLAW_AGENT_ID = 'nami';
+
+      const memory = await addMemory({
+        content: 'Explicit agent wins',
+        sourceAgent: 'robin',
+      }, config);
+
+      expect(memory.sourceAgent).toBe('robin');
+    } finally {
+      if (originalEnv === undefined) {
+        delete process.env.OPENCLAW_AGENT_ID;
+      } else {
+        process.env.OPENCLAW_AGENT_ID = originalEnv;
+      }
+    }
+  });
+
+  test('sourceAgent flows through to listMemories', async () => {
+    await addMemory({ content: 'From robin', sourceAgent: 'robin' }, config);
+    await addMemory({ content: 'From zoro', sourceAgent: 'zoro' }, config);
+    await addMemory({ content: 'No agent' }, config);
+
+    const all = await listMemories(config);
+    expect(all.length).toBe(3);
+
+    const robin = all.find(m => m.sourceAgent === 'robin');
+    expect(robin).not.toBeUndefined();
+    expect(robin!.content).toBe('From robin');
+
+    const noAgent = all.find(m => m.sourceAgent === null);
+    expect(noAgent).not.toBeUndefined();
+    expect(noAgent!.content).toBe('No agent');
+  });
 });

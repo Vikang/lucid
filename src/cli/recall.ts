@@ -44,7 +44,8 @@ export const recallCommand = new Command('recall')
       console.log(chalk.bold(`Found ${results.length} memories:\n`));
       for (const r of results) {
         const scoreColor = r.score >= 0.8 ? chalk.green : r.score >= 0.5 ? chalk.yellow : chalk.dim;
-        console.log(`  ${scoreColor(`[${r.score.toFixed(2)}]`)} ${r.content}`);
+        const agentSuffix = r.sourceAgent ? chalk.magenta(` (via ${r.sourceAgent})`) : '';
+        console.log(`  ${scoreColor(`[${r.score.toFixed(2)}]`)} ${r.content}${agentSuffix}`);
         console.log(`  ${chalk.cyan('→')} ${r.reasoning}`);
 
         // Show episode source if linked

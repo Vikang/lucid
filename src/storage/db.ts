@@ -4,6 +4,7 @@
  */
 
 import { Database } from 'bun:sqlite';
+import { createHash } from 'node:crypto';
 import { CREATE_MEMORIES_TABLE, CREATE_MEMORY_TAGS_TABLE, CREATE_EPISODES_TABLE, CREATE_EPISODE_TAGS_TABLE } from './schema';
 import { logger } from '../utils/logger';
 
@@ -70,6 +71,22 @@ export function initDatabase(dbPath: string): Database {
     // Column already exists — ignore
   }
 
+  // Migration: add metadata column for richer extraction context
+  try {
+    db.run('ALTER TABLE memories ADD COLUMN metadata TEXT DEFAULT NULL');
+    logger.debug('Added metadata column to memories table');
+  } catch {
+    // Column already exists — ignore
+  }
+
+  // Migration: add source_agent column for agent attribution
+  try {
+    db.run('ALTER TABLE memories ADD COLUMN source_agent TEXT DEFAULT NULL');
+    logger.debug('Added source_agent column to memories table');
+  } catch {
+    // Column already exists — ignore
+  }
+
   // Migration: add source_session_id column to episodes for import deduplication
   try {
     db.run('ALTER TABLE episodes ADD COLUMN source_session_id TEXT DEFAULT NULL');
@@ -81,6 +98,33 @@ export function initDatabase(dbPath: string): Database {
   // Index for fast duplicate lookups
   try {
     db.run('CREATE INDEX IF NOT EXISTS idx_episodes_source ON episodes(source_session_id)');
+  } catch {
+    // Index already exists — ignore
+  }
+
+  // Migration: add content_hash column for deduplication
+  try {
+    db.run('ALTER TABLE memories ADD COLUMN content_hash TEXT DEFAULT NULL');
+    logger.debug('Added content_hash column to memories table');
+
+    // Backfill hashes for existing memories
+    const rows = db.query('SELECT id, content FROM memories WHERE content_hash IS NULL').all() as { id: string; content: string }[];
+    if (rows.length > 0) {
+      const updateStmt = db.prepare('UPDATE memories SET content_hash = ? WHERE id = ?');
+      for (const row of rows) {
+        const normalized = row.content.toLowerCase().trim().replace(/\s+/g, ' ');
+        const hash = createHash('sha256').update(normalized).digest('hex');
+        updateStmt.run(hash, row.id);
+      }
+      logger.debug(`Backfilled content_hash for ${rows.length} existing memories`);
+    }
+  } catch {
+    // Column already exists — ignore
+  }
+
+  // Index for fast content hash lookups
+  try {
+    db.run('CREATE INDEX IF NOT EXISTS idx_memories_content_hash ON memories(content_hash)');
   } catch {
     // Index already exists — ignore
   }

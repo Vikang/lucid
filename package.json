@@ -1,6 +1,6 @@
 {
   "name": "@tuilux/lucid",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "CLI-first unified memory layer for AI agents",
   "type": "module",
   "bin": {

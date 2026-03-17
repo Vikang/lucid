@@ -19,26 +19,47 @@ const CONTEXT_TYPES = Object.values(ContextType);
 
 const EXTRACTION_PROMPT = `You are a memory extraction system. Analyze the following conversation transcript and extract discrete, standalone memories that would be useful to recall in future conversations.
 
+Focus on capturing the REASONING behind decisions, not just the outcomes. The most valuable memories explain WHY something was chosen, what alternatives were considered, what went wrong, and what was learned.
+
 For each memory, extract:
-- **content**: A concise, standalone statement that makes sense without the original conversation context. Write it as a fact or preference, not a quote. (1-3 sentences max)
-- **importance**: A score from 0.0 to 1.0 indicating how important/useful this memory is for future recall. Higher = more important (personal preferences, key decisions, recurring patterns > casual mentions, trivial details)
+- **content**: A concise, standalone statement that makes sense without the original conversation context. Write it as a fact, decision, or lesson — not a quote. Include the reasoning or context that makes it actionable. (1-3 sentences max)
+- **importance**: A score from 0.0 to 1.0 indicating how important/useful this memory is for future recall. Higher = more important (key decisions with rationale, hard-won lessons, recurring patterns > casual mentions, trivial details)
 - **tags**: An array of lowercase tags for categorization (e.g., ["typescript", "testing", "preference"])
 - **contextType**: One of: ${CONTEXT_TYPES.join(', ')}
 - **triggerPhrases**: Short phrases (2-5 words each) that should cause this memory to surface in future searches. Think about what someone might ask that this memory answers.
 - **temporalRelevance**: One of: "persistent" (always relevant), "short-term" (relevant for days/weeks), "expiring" (may become outdated)
+- **metadata**: An optional object with structured context about the memory. Include only the fields that are relevant:
+  - **decision_rationale**: Why this decision was made — the core reasoning
+  - **alternatives_considered**: Other options that were evaluated and why they were rejected
+  - **blockers**: Problems encountered and how they were resolved
+  - **lessons_learned**: Things that were surprising, counter-intuitive, or worth remembering for next time
 
 Rules:
 1. Each memory must be STANDALONE — someone reading it without the conversation should understand it fully
 2. Merge related details into single memories rather than creating many tiny ones
 3. Skip trivial greetings, pleasantries, and small talk
-4. Focus on: decisions made, preferences expressed, facts learned, patterns observed, problems solved, tools/techniques mentioned
+4. Focus on: WHY decisions were made (not just WHAT), trade-offs considered, blockers and resolutions, lessons learned, preferences expressed, patterns observed
 5. Be selective — quality over quantity. 3-8 memories per conversation is typical
 6. Tags should be specific and reusable (not "conversation1" but "react", "deployment", "preference")
+7. The metadata field is optional — omit it entirely for simple facts/preferences that don't involve decisions or trade-offs
 
 Respond with ONLY a JSON array. No markdown code fences, no explanation. Just the raw JSON array.
 
 Example output:
 [
+  {
+    "content": "Chose Bun over Node.js as the runtime for Lucid because it has built-in SQLite, TypeScript support, and faster startup times for CLI tools.",
+    "importance": 0.9,
+    "tags": ["bun", "runtime", "technical-decision", "lucid"],
+    "contextType": "TECHNICAL_DECISION",
+    "triggerPhrases": ["why bun", "runtime choice", "bun vs node"],
+    "temporalRelevance": "persistent",
+    "metadata": {
+      "decision_rationale": "Needed native SQLite and TypeScript without transpilation. Bun bundles both and has sub-100ms startup which matters for CLI tools.",
+      "alternatives_considered": "Node.js with better-sqlite3 was considered but required native compilation and separate TypeScript setup. Deno was evaluated but its SQLite support was less mature.",
+      "lessons_learned": "Bun's test runner is fast but has some compatibility gaps with Jest — had to adjust mocking patterns."
+    }
+  },
   {
     "content": "Prefers TypeScript strict mode with no-any rule enabled for all projects.",
     "importance": 0.8,
@@ -229,6 +250,10 @@ function mockLlmResponse(transcript: string): string {
       contextType: 'PROJECT_CONTEXT',
       triggerPhrases: ['mock memory', 'test extraction'],
       temporalRelevance: 'persistent',
+      metadata: {
+        decision_rationale: 'Mock decision rationale for testing purposes.',
+        lessons_learned: 'Mock lesson learned during testing.',
+      },
     },
   ];
   return JSON.stringify(memories);
@@ -301,6 +326,10 @@ export function parseLlmResponse(responseText: string): AddMemoryInput[] {
       ? record.temporalRelevance as 'persistent' | 'short-term' | 'expiring'
       : 'persistent';
 
+    const metadata = typeof record.metadata === 'object' && record.metadata !== null && !Array.isArray(record.metadata)
+      ? record.metadata as Record<string, unknown>
+      : null;
+
     memories.push({
       content,
       importance,
@@ -308,6 +337,7 @@ export function parseLlmResponse(responseText: string): AddMemoryInput[] {
       contextType,
       triggerPhrases,
       temporalRelevance,
+      metadata,
     });
   }
 

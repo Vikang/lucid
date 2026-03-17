@@ -11,15 +11,17 @@ import chalk from 'chalk';
 export const listCommand = new Command('list')
   .description('List stored memories')
   .option('--tag <tag>', 'Filter by tag')
+  .option('--by <agent>', 'Filter by source agent')
   .option('-n, --limit <n>', 'Max results', '20')
   .option('--json', 'Output as JSON')
-  .action(wrapAction(async (opts: { tag?: string; limit: string; json?: boolean }) => {
+  .action(wrapAction(async (opts: { tag?: string; by?: string; limit: string; json?: boolean }) => {
     const config = loadConfig();
     const limit = parseInt(opts.limit, 10);
 
     const memories = await listMemories(config, {
       tag: opts.tag,
       limit,
+      sourceAgent: opts.by,
     });
 
     if (memories.length === 0) {
@@ -40,8 +42,9 @@ export const listCommand = new Command('list')
       console.log(chalk.bold(`${memories.length} memories:\n`));
       for (const m of memories) {
         const preview = m.content.length > 80 ? m.content.slice(0, 80) + '…' : m.content;
+        const agentSuffix = m.sourceAgent ? ` | agent: ${m.sourceAgent}` : '';
         console.log(`  ${chalk.dim(m.id.slice(0, 8))}  ${preview}`);
-        console.log(`  ${chalk.dim(`importance: ${m.importance} | tags: ${m.tags.join(', ') || 'none'} | ${m.temporalRelevance}`)}`);
+        console.log(`  ${chalk.dim(`importance: ${m.importance} | tags: ${m.tags.join(', ') || 'none'} | ${m.temporalRelevance}${agentSuffix}`)}`);
         console.log();
       }
     }

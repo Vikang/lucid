@@ -6,10 +6,12 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'node:crypto';
 import { logger } from '../utils/logger';
 import { initDatabase, closeDatabase } from '../storage/db';
 import { getDbPath } from '../config';
 import { embed } from './embedder';
+import { findDuplicates, normalizeContent, computeContentHash } from './dedup';
 import type { Memory, Config } from '../storage/schema';
 import { ContextType } from '../storage/schema';
 
@@ -30,6 +32,10 @@ export interface AddMemoryInput {
   knowledgeDomain?: string;
   // Episode linking
   episodeId?: string;
+  // Richer extraction metadata
+  metadata?: Record<string, unknown> | null;
+  // Agent attribution
+  sourceAgent?: string;
 }
 
 interface MemoryRow {
@@ -53,6 +59,12 @@ interface MemoryRow {
   knowledge_domain: string | null;
   // Episode linking
   episode_id: string | null;
+  // Richer extraction metadata
+  metadata: string | null;
+  // Agent attribution
+  source_agent: string | null;
+  // Deduplication
+  content_hash: string | null;
 }
 
 /**
@@ -79,6 +91,9 @@ function rowToMemory(row: MemoryRow, tags: string[]): Memory {
     actionRequired: row.action_required === 1,
     knowledgeDomain: row.knowledge_domain || '',
     episodeId: row.episode_id || null,
+    metadata: row.metadata ? JSON.parse(row.metadata) as Record<string, unknown> : null,
+    sourceAgent: row.source_agent || null,
+    contentHash: row.content_hash || null,
   };
 }
 
@@ -86,9 +101,36 @@ function rowToMemory(row: MemoryRow, tags: string[]): Memory {
  * Add a new memory to the store.
  * Generates an embedding and stores everything in SQLite.
  */
-export async function addMemory(input: AddMemoryInput, config: Config): Promise<Memory> {
-  const id = uuidv4();
+export async function addMemory(input: AddMemoryInput, config: Config, options?: { skipDedup?: boolean }): Promise<Memory> {
   const now = new Date().toISOString();
+  const contentHash = computeContentHash(input.content);
+
+  // Dedup check (unless skipped)
+  if (!options?.skipDedup) {
+    try {
+      const duplicates = await findDuplicates(input.content, config);
+
+      // Exact hash match → return existing memory
+      const exactMatch = duplicates.find((d) => d.memory.contentHash === contentHash);
+      if (exactMatch) {
+        logger.debug(`Exact duplicate found: ${exactMatch.memory.id}`);
+        return exactMatch.memory;
+      }
+
+      // Semantic near-match → warn but continue
+      if (duplicates.length > 0) {
+        const best = duplicates[0];
+        logger.warn(
+          `Similar memory exists (${(best.similarity * 100).toFixed(1)}% match): "${best.memory.content.slice(0, 80)}..."`,
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`Dedup check failed: ${message}. Proceeding with insert.`);
+    }
+  }
+
+  const id = uuidv4();
   const dbPath = getDbPath(config);
   const db = initDatabase(dbPath);
 
@@ -105,10 +147,13 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
       logger.warn(`Failed to generate embedding: ${message}. Memory saved without embedding.`);
     }
 
+    // Resolve agent: explicit param > env var > null
+    const resolvedAgent = input.sourceAgent || process.env.OPENCLAW_AGENT_ID || null;
+
     // Insert memory row
     db.run(
-      `INSERT INTO memories (id, content, importance, context_type, trigger_phrases, source_session, temporal_relevance, embedding, embedding_dim, created_at, last_accessed, access_count, question_types, emotional_resonance, problem_solution_pair, confidence_score, action_required, knowledge_domain, episode_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO memories (id, content, importance, context_type, trigger_phrases, source_session, temporal_relevance, embedding, embedding_dim, created_at, last_accessed, access_count, question_types, emotional_resonance, problem_solution_pair, confidence_score, action_required, knowledge_domain, episode_id, metadata, source_agent, content_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.content,
@@ -127,6 +172,9 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
         input.actionRequired ? 1 : 0,
         input.knowledgeDomain ?? '',
         input.episodeId ?? null,
+        input.metadata ? JSON.stringify(input.metadata) : null,
+        resolvedAgent,
+        contentHash,
       ],
     );
 
@@ -158,6 +206,9 @@ export async function addMemory(input: AddMemoryInput, config: Config): Promise<
       actionRequired: input.actionRequired ?? false,
       knowledgeDomain: input.knowledgeDomain ?? '',
       episodeId: input.episodeId ?? null,
+      metadata: input.metadata ?? null,
+      sourceAgent: resolvedAgent,
+      contentHash,
     };
   } finally {
     closeDatabase();
@@ -214,7 +265,7 @@ export async function deleteMemory(id: string, config: Config): Promise<boolean>
  */
 export async function listMemories(
   config: Config,
-  options?: { tag?: string; limit?: number },
+  options?: { tag?: string; limit?: number; sourceAgent?: string },
 ): Promise<Memory[]> {
   const dbPath = getDbPath(config);
   const db = initDatabase(dbPath);
@@ -223,7 +274,15 @@ export async function listMemories(
   try {
     let rows: MemoryRow[];
 
-    if (options?.tag) {
+    if (options?.tag && options?.sourceAgent) {
+      rows = db.query(
+        `SELECT m.* FROM memories m
+         JOIN memory_tags mt ON m.id = mt.memory_id
+         WHERE mt.tag = ? AND m.source_agent = ?
+         ORDER BY m.created_at DESC
+         LIMIT ?`,
+      ).all(options.tag, options.sourceAgent, limit) as MemoryRow[];
+    } else if (options?.tag) {
       rows = db.query(
         `SELECT m.* FROM memories m
          JOIN memory_tags mt ON m.id = mt.memory_id
@@ -231,6 +290,10 @@ export async function listMemories(
          ORDER BY m.created_at DESC
          LIMIT ?`,
       ).all(options.tag, limit) as MemoryRow[];
+    } else if (options?.sourceAgent) {
+      rows = db.query(
+        'SELECT * FROM memories WHERE source_agent = ? ORDER BY created_at DESC LIMIT ?',
+      ).all(options.sourceAgent, limit) as MemoryRow[];
     } else {
       rows = db.query(
         'SELECT * FROM memories ORDER BY created_at DESC LIMIT ?',

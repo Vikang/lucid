@@ -27,6 +27,8 @@ export interface ScoringComponents {
   problem: number;
   action: number;
   confidence: number;
+  serendipity: number;
+  surprise: number;
 }
 
 export interface ScoredMemory {
@@ -70,6 +72,7 @@ interface MemoryWithEmbedding {
   action_required: number;
   knowledge_domain: string | null;
   episode_id: string | null;
+  source_agent: string | null;
 }
 
 // ─── Stop Words ──────────────────────────────────────────────────────
@@ -305,6 +308,58 @@ export function scoreProblemSolution(message: string, isProblemSolution: boolean
 }
 
 /**
+ * Score serendipity — inverse access frequency.
+ * Rarely accessed memories get boosted; recently-seen ones get penalized.
+ */
+export function scoreSerendipity(accessCount: number, lastAccessed: string | null): number {
+  let score: number;
+
+  if (accessCount <= 2) {
+    score = 0.8;
+  } else if (accessCount <= 7) {
+    score = 0.4;
+  } else {
+    score = 0.1;
+  }
+
+  // If accessed within the last 24 hours, halve the score
+  if (lastAccessed) {
+    const lastAccessedMs = new Date(lastAccessed).getTime();
+    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+    if (lastAccessedMs > twentyFourHoursAgo) {
+      score *= 0.5;
+    }
+  }
+
+  return score;
+}
+
+/**
+ * Score temporal surprise — old memory rediscovery.
+ * Forgotten gems (old + not recently accessed) get boosted.
+ */
+export function scoreTemporalSurprise(createdAt: string, lastAccessed: string | null): number {
+  const now = Date.now();
+  const createdMs = new Date(createdAt).getTime();
+  const ageMs = now - createdMs;
+  const ageDays = ageMs / (1000 * 60 * 60 * 24);
+
+  // Too recent to be surprising
+  if (ageDays < 7) return 0.0;
+
+  const lastAccessedMs = lastAccessed ? new Date(lastAccessed).getTime() : 0;
+  const daysSinceAccess = lastAccessed
+    ? (now - lastAccessedMs) / (1000 * 60 * 60 * 24)
+    : Infinity; // Never accessed = maximum surprise
+
+  // Forgotten gem: old AND not recently accessed
+  if (ageDays > 30 && daysSinceAccess >= 14) return 0.7;
+  if (ageDays > 14 && daysSinceAccess >= 7) return 0.4;
+
+  return 0.0;
+}
+
+/**
  * Generate human-readable reasoning for why a memory was selected.
  * Port of RLabs' _generate_selection_reasoning.
  */
@@ -321,6 +376,8 @@ export function generateSelectionReasoning(components: ScoringComponents): strin
     problem: 'Problem-solution match',
     action: 'Action required',
     confidence: 'High confidence',
+    serendipity: 'Serendipity — rarely accessed',
+    surprise: 'Temporal surprise — rediscovered',
   };
 
   // Sort components by score, pick top 1-3 with score > 0.3
@@ -436,24 +493,32 @@ export async function searchMemories(
       // 10. Problem-solution patterns
       const problemScore = scoreProblemSolution(query, isProblemSolution);
 
-      // Composite scoring (exact RLabs formula)
+      // 11. Serendipity — inverse access frequency
+      const serendipityScore = scoreSerendipity(row.access_count, row.last_accessed);
+
+      // 12. Temporal surprise — old memory rediscovery
+      const surpriseScore = scoreTemporalSurprise(row.created_at, row.last_accessed);
+
+      // Composite scoring (updated formula with serendipity)
 
       // Relevance (gatekeeper — max 0.30)
       const relevanceScore =
         triggerScore * 0.10 +
-        vectorScore * 0.10 +
+        vectorScore * 0.12 +
         tagScore * 0.05 +
-        questionScore * 0.05;
+        questionScore * 0.03;
 
       // Value (max 0.70)
       const valueScore =
-        importance * 0.20 +
-        temporalScore * 0.10 +
-        contextScore * 0.10 +
-        confidenceScore * 0.10 +
-        emotionScore * 0.10 +
-        problemScore * 0.05 +
-        actionBoost * 0.05;
+        importance * 0.12 +
+        temporalScore * 0.08 +
+        contextScore * 0.08 +
+        confidenceScore * 0.08 +
+        emotionScore * 0.08 +
+        problemScore * 0.04 +
+        actionBoost * 0.04 +
+        serendipityScore * 0.10 +
+        surpriseScore * 0.08;
 
       // Final score
       const finalScore = relevanceScore + valueScore;
@@ -473,6 +538,8 @@ export async function searchMemories(
         problem: problemScore,
         action: actionBoost,
         confidence: confidenceScore,
+        serendipity: serendipityScore,
+        surprise: surpriseScore,
       };
 
       const memory: Memory = {
@@ -494,6 +561,8 @@ export async function searchMemories(
         actionRequired: isActionRequired,
         knowledgeDomain: row.knowledge_domain || '',
         episodeId: row.episode_id || null,
+        metadata: row.metadata ? JSON.parse(row.metadata) as Record<string, unknown> : null,
+        sourceAgent: row.source_agent || null,
       };
 
       scored.push({
@@ -529,10 +598,18 @@ export async function searchMemories(
     }
 
     // Tier 2: SHOULD include (diversity)
+    // Sort candidates by score + diversity bonus for context types not yet represented
     const shouldCap = Math.ceil(limit * 1.5);
-    for (const m of scored) {
+    const tier2Candidates = scored
+      .filter((m) => !selectedIds.has(m.memory.id))
+      .map((m) => {
+        const diversityBonus = !typesIncluded.has(m.memory.contextType) ? 0.15 : 0;
+        return { ...m, effectiveScore: m.score + diversityBonus };
+      })
+      .sort((a, b) => b.effectiveScore - a.effectiveScore);
+
+    for (const m of tier2Candidates) {
       if (selected.length >= shouldCap) break;
-      if (selectedIds.has(m.memory.id)) continue;
 
       const isShould =
         m.score > 0.5 ||

@@ -6,6 +6,7 @@
 
 import { Command } from 'commander';
 import { addMemory } from '../core/memory';
+import { findDuplicates } from '../core/dedup';
 import { loadConfig } from '../config';
 import { wrapAction } from '../utils/cli-wrapper';
 import { ValidationError } from '../utils/errors';
@@ -26,6 +27,8 @@ export const addCommand = new Command('add')
   .option('--action-required', 'Mark as requiring action')
   .option('--domain <domain>', 'Knowledge domain')
   .option('--episode <id>', 'Link to an episode')
+  .option('--agent <name>', 'Source agent name')
+  .option('--no-dedup', 'Skip deduplication check')
   .option('--json', 'Output as JSON')
   .action(wrapAction(async (
     content: string,
@@ -42,10 +45,13 @@ export const addCommand = new Command('add')
       actionRequired?: boolean;
       domain?: string;
       episode?: string;
+      agent?: string;
+      dedup?: boolean;
       json?: boolean;
     },
   ) => {
     const config = loadConfig();
+    const skipDedup = opts.dedup === false;
 
     // Validate content
     if (!content.trim()) {
@@ -83,6 +89,44 @@ export const addCommand = new Command('add')
       ? opts.questions.split(',').map((t) => t.trim()).filter(Boolean)
       : [];
 
+    // Dedup check: warn on near-matches, skip on exact hash match
+    let wasExactDuplicate = false;
+    if (!skipDedup) {
+      try {
+        const duplicates = await findDuplicates(content.trim(), config);
+        if (duplicates.length > 0) {
+          const best = duplicates[0];
+          if (best.similarity === 1.0) {
+            // Exact duplicate — skip
+            if (opts.json) {
+              console.log(JSON.stringify(best.memory, null, 2));
+            } else {
+              console.log(chalk.yellow('⚠️  Exact duplicate exists — skipping'));
+              console.log(`  ${chalk.dim('id:')} ${best.memory.id}`);
+              const preview = best.memory.content.length > 80
+                ? best.memory.content.slice(0, 80) + '...'
+                : best.memory.content;
+              console.log(`  ${chalk.dim('content:')} ${preview}`);
+            }
+            wasExactDuplicate = true;
+          } else {
+            const preview = best.memory.content.length > 60
+              ? best.memory.content.slice(0, 60) + '...'
+              : best.memory.content;
+            console.log(
+              chalk.yellow('⚠️  Similar memory exists: ') + preview +
+              chalk.dim(` (${(best.similarity * 100).toFixed(1)}% match)`),
+            );
+            console.log(chalk.dim("   Adding anyway. Run 'lucid dedup' to clean up."));
+          }
+        }
+      } catch {
+        // Dedup check failed — continue with add
+      }
+    }
+
+    if (wasExactDuplicate) return;
+
     const memory = await addMemory({
       content: content.trim(),
       importance,
@@ -98,12 +142,14 @@ export const addCommand = new Command('add')
       actionRequired: opts.actionRequired,
       knowledgeDomain: opts.domain,
       episodeId: opts.episode,
-    }, config);
+      sourceAgent: opts.agent,
+    }, config, { skipDedup: true });
 
     if (opts.json) {
       console.log(JSON.stringify(memory, null, 2));
     } else {
-      console.log(chalk.green('✓') + ' Memory added');
+      const agentSuffix = memory.sourceAgent ? ` (agent: ${memory.sourceAgent})` : '';
+      console.log(chalk.green('✓') + ` Memory added${agentSuffix}`);
       console.log(`  ${chalk.dim('id:')} ${memory.id}`);
       console.log(`  ${chalk.dim('content:')} ${memory.content}`);
       if (tags.length > 0) {

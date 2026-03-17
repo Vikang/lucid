@@ -7,6 +7,8 @@ import {
   scoreQuestionTypes,
   scoreEmotionalContext,
   scoreProblemSolution,
+  scoreSerendipity,
+  scoreTemporalSurprise,
   generateSelectionReasoning,
   searchMemories,
 } from '../src/core/search';
@@ -218,6 +220,8 @@ describe('generateSelectionReasoning', () => {
       problem: 0.0,
       action: 0.0,
       confidence: 0.8,
+      serendipity: 0.0,
+      surprise: 0.0,
     };
     const reasoning = generateSelectionReasoning(components);
     expect(reasoning).toContain('Strong trigger phrase match');
@@ -237,9 +241,144 @@ describe('generateSelectionReasoning', () => {
       problem: 0.0,
       action: 0.0,
       confidence: 0.1,
+      serendipity: 0.0,
+      surprise: 0.0,
     };
     const reasoning = generateSelectionReasoning(components);
     expect(reasoning).toContain('composite scoring');
+  });
+
+  test('includes serendipity label when score is high', () => {
+    const components: ScoringComponents = {
+      trigger: 0.1,
+      vector: 0.2,
+      importance: 0.1,
+      temporal: 0.1,
+      context: 0.1,
+      tags: 0.0,
+      question: 0.0,
+      emotion: 0.0,
+      problem: 0.0,
+      action: 0.0,
+      confidence: 0.1,
+      serendipity: 0.8,
+      surprise: 0.0,
+    };
+    const reasoning = generateSelectionReasoning(components);
+    expect(reasoning).toContain('Serendipity — rarely accessed');
+  });
+
+  test('includes surprise label when score is high', () => {
+    const components: ScoringComponents = {
+      trigger: 0.1,
+      vector: 0.2,
+      importance: 0.1,
+      temporal: 0.1,
+      context: 0.1,
+      tags: 0.0,
+      question: 0.0,
+      emotion: 0.0,
+      problem: 0.0,
+      action: 0.0,
+      confidence: 0.1,
+      serendipity: 0.0,
+      surprise: 0.7,
+    };
+    const reasoning = generateSelectionReasoning(components);
+    expect(reasoning).toContain('Temporal surprise — rediscovered');
+  });
+});
+
+// ─── Serendipity & Surprise Scoring Tests ───────────────────────────
+
+describe('scoreSerendipity', () => {
+  test('low access count (0) returns 0.8', () => {
+    expect(scoreSerendipity(0, null)).toBe(0.8);
+  });
+
+  test('low access count (2) returns 0.8', () => {
+    expect(scoreSerendipity(2, null)).toBe(0.8);
+  });
+
+  test('medium access count (3) returns 0.4', () => {
+    expect(scoreSerendipity(3, null)).toBe(0.4);
+  });
+
+  test('medium access count (7) returns 0.4', () => {
+    expect(scoreSerendipity(7, null)).toBe(0.4);
+  });
+
+  test('high access count (8) returns 0.1', () => {
+    expect(scoreSerendipity(8, null)).toBe(0.1);
+  });
+
+  test('high access count (100) returns 0.1', () => {
+    expect(scoreSerendipity(100, null)).toBe(0.1);
+  });
+
+  test('recently accessed (within 24h) halves score', () => {
+    const recentAccess = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(); // 1 hour ago
+    expect(scoreSerendipity(0, recentAccess)).toBe(0.4); // 0.8 * 0.5
+  });
+
+  test('recently accessed medium count halves score', () => {
+    const recentAccess = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(); // 12 hours ago
+    expect(scoreSerendipity(5, recentAccess)).toBe(0.2); // 0.4 * 0.5
+  });
+
+  test('old access (>24h) does not reduce score', () => {
+    const oldAccess = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(); // 2 days ago
+    expect(scoreSerendipity(0, oldAccess)).toBe(0.8);
+  });
+
+  test('null lastAccessed does not reduce score', () => {
+    expect(scoreSerendipity(1, null)).toBe(0.8);
+  });
+});
+
+describe('scoreTemporalSurprise', () => {
+  test('memory < 7 days old returns 0.0', () => {
+    const recent = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(); // 3 days ago
+    expect(scoreTemporalSurprise(recent, null)).toBe(0.0);
+  });
+
+  test('forgotten gem: > 30 days old, not accessed in 14+ days', () => {
+    const old = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(); // 45 days ago
+    const lastAccessed = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(); // 20 days ago
+    expect(scoreTemporalSurprise(old, lastAccessed)).toBe(0.7);
+  });
+
+  test('forgotten gem: > 30 days old, never accessed', () => {
+    const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // 60 days ago
+    expect(scoreTemporalSurprise(old, null)).toBe(0.7);
+  });
+
+  test('medium surprise: > 14 days old, not accessed in 7+ days', () => {
+    const medium = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(); // 20 days ago
+    const lastAccessed = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(); // 10 days ago
+    expect(scoreTemporalSurprise(medium, lastAccessed)).toBe(0.4);
+  });
+
+  test('no surprise: > 14 days old but accessed recently', () => {
+    const medium = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(); // 20 days ago
+    const lastAccessed = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(); // 2 days ago
+    expect(scoreTemporalSurprise(medium, lastAccessed)).toBe(0.0);
+  });
+
+  test('no surprise: exactly 7 days old', () => {
+    const exact7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days ago
+    // 7 days is not > 14 days, so should return 0.0
+    expect(scoreTemporalSurprise(exact7, null)).toBe(0.0);
+  });
+
+  test('medium surprise: 15 days old, never accessed', () => {
+    const d15 = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    expect(scoreTemporalSurprise(d15, null)).toBe(0.4);
+  });
+
+  test('forgotten gem: 31 days old, never accessed', () => {
+    const d31 = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+    expect(scoreTemporalSurprise(d31, null)).toBe(0.7);
   });
 });
 

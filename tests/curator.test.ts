@@ -89,6 +89,64 @@ describe('parseLlmResponse', () => {
     expect(result[0].tags).toEqual([]);
     expect(result[0].contextType).toBe('PROJECT_CONTEXT');
     expect(result[0].temporalRelevance).toBe('persistent');
+    expect(result[0].metadata).toBeNull();
+  });
+
+  test('parses metadata object when present', () => {
+    const input = JSON.stringify([
+      {
+        content: 'Chose Bun over Node for built-in SQLite and TypeScript support.',
+        importance: 0.9,
+        tags: ['bun', 'runtime'],
+        contextType: 'TECHNICAL_DECISION',
+        triggerPhrases: ['why bun', 'runtime choice'],
+        temporalRelevance: 'persistent',
+        metadata: {
+          decision_rationale: 'Needed native SQLite without native compilation.',
+          alternatives_considered: 'Node.js with better-sqlite3, Deno.',
+          blockers: 'Bun test runner had Jest compatibility gaps.',
+          lessons_learned: 'Bun startup is sub-100ms which matters for CLI.',
+        },
+      },
+    ]);
+
+    const result = parseLlmResponse(input);
+    expect(result).toHaveLength(1);
+    expect(result[0].metadata).not.toBeNull();
+    expect(result[0].metadata?.decision_rationale).toBe('Needed native SQLite without native compilation.');
+    expect(result[0].metadata?.alternatives_considered).toBe('Node.js with better-sqlite3, Deno.');
+    expect(result[0].metadata?.blockers).toBe('Bun test runner had Jest compatibility gaps.');
+    expect(result[0].metadata?.lessons_learned).toBe('Bun startup is sub-100ms which matters for CLI.');
+  });
+
+  test('ignores invalid metadata types (array, string, number)', () => {
+    const input = JSON.stringify([
+      { content: 'Memory with array metadata', importance: 0.5, metadata: ['not', 'valid'] },
+      { content: 'Memory with string metadata', importance: 0.5, metadata: 'not valid' },
+      { content: 'Memory with number metadata', importance: 0.5, metadata: 42 },
+    ]);
+
+    const result = parseLlmResponse(input);
+    expect(result).toHaveLength(3);
+    expect(result[0].metadata).toBeNull();
+    expect(result[1].metadata).toBeNull();
+    expect(result[2].metadata).toBeNull();
+  });
+
+  test('handles metadata with partial fields', () => {
+    const input = JSON.stringify([
+      {
+        content: 'Decision with only rationale.',
+        importance: 0.7,
+        metadata: {
+          decision_rationale: 'It was the simplest approach.',
+        },
+      },
+    ]);
+
+    const result = parseLlmResponse(input);
+    expect(result).toHaveLength(1);
+    expect(result[0].metadata).toEqual({ decision_rationale: 'It was the simplest approach.' });
   });
 });
 
@@ -164,5 +222,8 @@ describe('curateTranscript', () => {
     expect(result).toHaveLength(1);
     expect(result[0].content).toContain('Mock memory');
     expect(result[0].tags).toEqual(['mock', 'test']);
+    expect(result[0].metadata).not.toBeNull();
+    expect(result[0].metadata?.decision_rationale).toBe('Mock decision rationale for testing purposes.');
+    expect(result[0].metadata?.lessons_learned).toBe('Mock lesson learned during testing.');
   });
 });

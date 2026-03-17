@@ -13,6 +13,7 @@ import { configCommand } from './config';
 import { addCommand } from './add';
 import { sessionCommand } from './session';
 import { importCommand } from './import';
+import { dedupCommand } from './dedup';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -20,7 +21,7 @@ export function createProgram(): Command {
   program
     .name('lucid')
     .description('CLI-first unified memory layer for AI agents')
-    .version('0.3.1');
+    .version('0.4.0');
 
   program.addCommand(initCommand);
   program.addCommand(statusCommand);
@@ -32,6 +33,7 @@ export function createProgram(): Command {
   program.addCommand(addCommand);
   program.addCommand(sessionCommand);
   program.addCommand(importCommand);
+  program.addCommand(dedupCommand);
 
   return program;
 }
