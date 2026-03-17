@@ -21,7 +21,7 @@ export function createProgram(): Command {
   program
     .name('lucid')
     .description('CLI-first unified memory layer for AI agents')
-    .version('0.4.0');
+    .version('0.4.1');
 
   program.addCommand(initCommand);
   program.addCommand(statusCommand);
