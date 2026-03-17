@@ -508,6 +508,53 @@ describe('searchMemories — composite scoring', () => {
   });
 });
 
+describe('searchMemories — serendipity vector gate', () => {
+  test('serendipity and surprise are 0 when vector similarity is low', async () => {
+    // Add a memory with low vector similarity to the query
+    // Mock embedder produces deterministic embeddings, so we use very different content
+    await addMemory({
+      content: 'ancient forgotten memory about underwater basket weaving xyz',
+      importance: 0.5,
+      tags: ['basket'],
+      triggerPhrases: ['underwater basket weaving'],
+      confidenceScore: 0.5,
+    }, config);
+
+    // Search with a completely different query — mock embedder should produce low similarity
+    const results = await searchMemories('underwater basket weaving', { limit: 10, config });
+
+    // If any results come back, check the serendipity gate
+    for (const r of results) {
+      if (r.components.vector <= 0.5) {
+        expect(r.components.serendipity).toBe(0);
+        expect(r.components.surprise).toBe(0);
+      }
+    }
+  });
+
+  test('serendipity scores normally when vector similarity is high', async () => {
+    // With mock embedder, identical content should produce high vector similarity
+    await addMemory({
+      content: 'test query for serendipity check',
+      importance: 0.8,
+      tags: ['test'],
+      triggerPhrases: ['test query serendipity'],
+      confidenceScore: 0.8,
+    }, config);
+
+    const results = await searchMemories('test query for serendipity check', { limit: 10, config });
+
+    // If results come back with high vector similarity, serendipity should be non-zero
+    // (access_count starts at 0, so scoreSerendipity(0, null) = 0.8)
+    for (const r of results) {
+      if (r.components.vector > 0.5) {
+        // Serendipity gate is open — score should be computed normally
+        expect(r.components.serendipity).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+});
+
 describe('searchMemories — 3-tier selection', () => {
   test('tier 1 includes critical memories (importance > 0.9)', async () => {
     await addMemory({

@@ -15,6 +15,10 @@
 - 🔌 **Runtime-agnostic** — Works with any AI agent that can call a CLI (OpenClaw, Claude Code, Codex, Gemini CLI)
 - 💾 **SQLite storage** — All data stays on your machine via `bun:sqlite`
 - 📝 **Manual + auto** — Add memories directly or auto-curate from transcripts (optional, needs LLM)
+- 🔗 **Semantic deduplication** — Automatically detects and merges duplicate memories on `lucid add`, or batch-deduplicate with `lucid dedup`
+- 🤖 **Agent attribution** — Track which agent created each memory with `--agent` flag or automatic `OPENCLAW_AGENT_ID` detection. Filter by source agent with `--by`
+- 🧩 **Richer memory extraction** — Structured metadata captures decision rationale, alternatives considered, blockers, and lessons learned
+- ✨ **Serendipity scoring** — Surfaces forgotten but relevant memories that might otherwise stay buried
 
 ## Quick Start
 
@@ -27,8 +31,8 @@ bun install -g lucid-memory
 # Initialize (no API keys needed!)
 lucid init
 
-# Add memories
-lucid add "We chose TypeScript for the project" --tags tech-stack -i 0.9
+# Add memories (--agent tags who created it)
+lucid add "We chose TypeScript for the project" --tags tech-stack -i 0.9 --agent robin
 lucid add "Always use semantic versioning" --tags workflow
 
 # Search semantically
@@ -37,8 +41,17 @@ lucid recall "what language are we using?"
 # List all memories
 lucid list
 
+# List memories from a specific agent
+lucid list --by robin
+
+# Find and merge duplicate memories
+lucid dedup --merge
+
 # Delete a memory
 lucid forget <id>
+
+# Import memories from OpenClaw sessions
+lucid import openclaw
 
 # Check status
 lucid status
@@ -175,11 +188,13 @@ export GEMINI_API_KEY="..."
 |---|---|---|
 | `lucid init` | Initialize data directory and database | — |
 | `lucid status` | Show config, data dir, memory count | — |
-| `lucid add <content>` | Add a memory manually | `-t/--tags`, `-i/--importance`, `--type`, `--source`, `--json` |
+| `lucid add <content>` | Add a memory manually | `-t/--tags`, `-i/--importance`, `--type`, `--source`, `--agent <name>`, `--no-dedup`, `--json` |
 | `lucid curate` | Extract memories from a transcript (needs LLM) | `--file <path>`, `--text <string>`, `--json`, `--dry-run` |
-| `lucid recall <query>` | Semantic search over memories | `-n <limit>`, `--json`, `--min-score <threshold>` |
-| `lucid list` | List stored memories | `--tag <tag>`, `-n <limit>`, `--json` |
+| `lucid recall <query>` | Semantic search over memories (includes agent attribution in output) | `-n <limit>`, `--json`, `--min-score <threshold>` |
+| `lucid list` | List stored memories | `--tag <tag>`, `--by <agent>`, `-n <limit>`, `--json` |
 | `lucid forget <id>` | Delete a memory by ID | — |
+| `lucid dedup` | Find and merge duplicate memories | `--merge`, `--threshold <score>`, `--json` |
+| `lucid import openclaw` | Import memories from OpenClaw sessions | — |
 | `lucid config show` | Print current config | — |
 | `lucid config set <key> <val>` | Set a config value | — |
 | `lucid config reset` | Reset config to defaults | — |

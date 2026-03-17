@@ -493,11 +493,15 @@ export async function searchMemories(
       // 10. Problem-solution patterns
       const problemScore = scoreProblemSolution(query, isProblemSolution);
 
-      // 11. Serendipity — inverse access frequency
-      const serendipityScore = scoreSerendipity(row.access_count, row.last_accessed);
+      // 11. Serendipity — inverse access frequency (gated behind vector similarity)
+      const serendipityScore = vectorScore > 0.5
+        ? scoreSerendipity(row.access_count, row.last_accessed)
+        : 0.0;
 
-      // 12. Temporal surprise — old memory rediscovery
-      const surpriseScore = scoreTemporalSurprise(row.created_at, row.last_accessed);
+      // 12. Temporal surprise — old memory rediscovery (gated behind vector similarity)
+      const surpriseScore = vectorScore > 0.5
+        ? scoreTemporalSurprise(row.created_at, row.last_accessed)
+        : 0.0;
 
       // Composite scoring (updated formula with serendipity)
 
@@ -510,15 +514,15 @@ export async function searchMemories(
 
       // Value (max 0.70)
       const valueScore =
-        importance * 0.12 +
+        importance * 0.15 +
         temporalScore * 0.08 +
-        contextScore * 0.08 +
+        contextScore * 0.10 +
         confidenceScore * 0.08 +
         emotionScore * 0.08 +
         problemScore * 0.04 +
         actionBoost * 0.04 +
-        serendipityScore * 0.10 +
-        surpriseScore * 0.08;
+        serendipityScore * 0.04 +
+        surpriseScore * 0.03;
 
       // Final score
       const finalScore = relevanceScore + valueScore;
